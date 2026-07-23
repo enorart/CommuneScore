@@ -16,7 +16,7 @@ def main() -> None:
     ref = communes_ref.build()
 
     # TODO: fetch each source, join onto ref by code_insee
-    # rent_df = rent.fetch()
+    rent_df = rent.fetch()
     # bpe_df = bpe.fetch()
     # ips_df = ips_schools.fetch()
     # ssmsi_df = ssmsi.fetch()
