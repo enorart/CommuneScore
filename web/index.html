@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ville Idéale IDF</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="layout">
+      <aside id="sidebar">
+        <h1>Ville Idéale IDF</h1>
+        <p class="subtitle">Choisissez votre commune idéale en Île-de-France</p>
+
+        <div id="sliders"><!-- populated by sliders.js --></div>
+
+        <div id="ranking">
+          <h2>Classement</h2>
+          <ol id="ranking-list"><!-- populated by app.js --></ol>
+        </div>
+      </aside>
+
+      <main id="map-container">
+        <div id="map"></div>
+        <div id="legend"><!-- populated by app.js --></div>
+      </main>
+    </div>
+
+    <footer id="attribution">
+      <!-- Sources / licenses, see README.md -->
+    </footer>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

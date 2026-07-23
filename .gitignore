@@ -1,0 +1,23 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+uv.lock.tmp
+
+# Data (large, re-downloadable / regenerated)
+data/raw/
+
+# Node / frontend
+web/node_modules/
+web/dist/
+
+# Env / secrets
+.env
+.env.*
+
+# IDE
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
