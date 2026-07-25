@@ -83,6 +83,32 @@ body {
   text-align: right;
 }
 
+.commune-popup tr.popup-highlight {
+  font-weight: bold;
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+#rent-metrics h2 {
+  font-size: 0.95rem;
+  margin: 0 0 0.5rem;
+}
+
+.metric-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.metric-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
 /* Mobile: stack sidebar above map, sidebar becomes collapsible */
 @media (max-width: 768px) {
   #layout {
