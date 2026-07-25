@@ -18,7 +18,7 @@ import pandas as pd
 # reference geometry is WGS84 degrees.
 LAMBERT_93 = "EPSG:2154"
 
-DEFAULT_RADIUS_KM = 3.0
+DEFAULT_RADIUS_KM = 1.0
 
 
 def _buffered(ref: gpd.GeoDataFrame, radius_km: float) -> gpd.GeoDataFrame:

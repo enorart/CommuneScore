@@ -42,7 +42,7 @@ const RAMP = [
   [100, [23, 73, 95]],
 ];
 
-const NO_DATA_COLOR = "#e6e3dd";
+const NO_DATA_COLOR = "#DDDDCA";
 
 function rgb([r, g, b]) {
   return `rgb(${r} ${g} ${b})`;
@@ -299,11 +299,8 @@ function map_init() {
       source: "communes",
       paint: {
         "fill-color": fillColorExpression(),
-        // Out-of-scope communes stay on the map, faded: a small
-        // intercommunalité floating on the basemap with nothing around it is
-        // impossible to place. Their composite is null, so they are already
-        // painted the no-data grey.
-        "fill-opacity": ["case", ["boolean", ["feature-state", "inScope"], true], 0.78, 0.22],
+        // Out-of-scope communes stay on the map, greyed out
+        "fill-opacity": ["case", ["boolean", ["feature-state", "inScope"], true], 0.78, 0.50],
       },
     });
 

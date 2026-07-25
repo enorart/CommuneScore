@@ -8,7 +8,7 @@
 
 // Radius the equipment counts were aggregated over. Must match
 // NEARBY_SUFFIX in etl/pipeline.py — it is baked into the column names.
-export const NEARBY_RADIUS_KM = 3;
+export const NEARBY_RADIUS_KM = 1;
 
 export const MAX_WEIGHT = 6;
 
@@ -45,7 +45,7 @@ export const CRITERIA = [
     property: "score_enseignement",
     raw: `nb_enseignement_${NEARBY_RADIUS_KM}km`,
     unit: `à ${NEARBY_RADIUS_KM} km`,
-    defaultWeight: 1,
+    defaultWeight: 0,
   },
   {
     key: "petite_enfance",
@@ -69,7 +69,7 @@ export const CRITERIA = [
     property: "score_culture",
     raw: `nb_culture_${NEARBY_RADIUS_KM}km`,
     unit: `à ${NEARBY_RADIUS_KM} km`,
-    defaultWeight: 1,
+    defaultWeight: 0,
   },
   {
     key: "transport",
