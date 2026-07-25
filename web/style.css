@@ -338,6 +338,10 @@ input[type="range"]:focus-visible {
 
 .maplibregl-popup-content {
   padding: 0;
+  /* Expanding the rent typologies makes this tall enough to overrun a short
+     viewport, and MapLibre only flips the anchor, it does not shrink. */
+  max-height: 72vh;
+  overflow-y: auto;
   border-radius: 3px;
   border: 1px solid var(--rule);
   box-shadow: 0 6px 22px rgb(20 23 28 / 0.16);
@@ -400,6 +404,71 @@ input[type="range"]:focus-visible {
 
 .commune-popup tr.is-muted {
   opacity: 0.4;
+}
+
+/* Rent expands into ANIL's four typologies. The chevron is the only
+   affordance the row needs — the numbers do the rest. */
+.rent-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink-soft);
+  cursor: pointer;
+  text-align: left;
+}
+
+.rent-toggle::after {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 3.5px solid transparent;
+  border-right: 3.5px solid transparent;
+  border-top: 4px solid currentColor;
+  transition: transform 0.15s ease;
+}
+
+.rent-toggle[aria-expanded="true"] {
+  color: var(--ink);
+}
+
+.rent-toggle[aria-expanded="true"]::after {
+  transform: rotate(180deg);
+}
+
+.rent-toggle:hover {
+  color: var(--ink);
+}
+
+.rent-toggle:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.rent-detail th {
+  padding-left: 0.85rem;
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+}
+
+.rent-detail td {
+  color: var(--ink-faint);
+}
+
+/* The two typologies that actually feed the score, so the expander explains
+   where the average above it came from. */
+.rent-detail.is-scored th,
+.rent-detail.is-scored td {
+  color: var(--ink-soft);
+}
+
+.rent-detail.is-scored th::before {
+  content: "· ";
+  color: var(--ink);
 }
 
 .commune-popup th {

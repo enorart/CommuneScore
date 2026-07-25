@@ -18,6 +18,11 @@ RENT_COLUMNS = [
     "loyer_m2_maison",
 ]
 
+# Equipment columns are named after the radius they were counted over, so
+# the output is self-describing. web/sliders.js has to agree — its
+# NEARBY_RADIUS_KM is the same number.
+NEARBY_SUFFIX = f"{neighbourhood.DEFAULT_RADIUS_KM:g}km"
+
 
 def main() -> None:
     ref = communes_ref.build()
@@ -30,15 +35,14 @@ def main() -> None:
     joined = ref.join(rent_df, how="left").join(bpe_df, how="left")
 
     # What matters for choosing where to live is how much is reachable, not
-    # how much sits inside the commune's own borders -- a bakery 500 m away
-    # in the next commune counts. So equipment is re-counted over each
-    # commune plus everything within 5 km. See etl/common/neighbourhood.py.
+    # how much sits inside the commune's own borders :
+    # equipment is re-counted over each commune plus everything within reach.
     nearby = neighbourhood.aggregate(ref, joined[bpe.CRITERION_COLUMNS])
 
     for column in bpe.CRITERION_COLUMNS:
-        joined[f"{column}_5km"] = nearby[column].astype("int64")
+        joined[f"{column}_{NEARBY_SUFFIX}"] = nearby[column].astype("int64")
 
-    joined["population_5km"] = nearby["population_voisinage"]
+    joined[f"population_{NEARBY_SUFFIX}"] = nearby["population_voisinage"]
 
     # TODO: join security and environment scores here once those source
     # modules are implemented.
@@ -52,7 +56,9 @@ def main() -> None:
     # client-side on every slider move (PROJECT_PLAN.md section 2).
     for column in bpe.CRITERION_COLUMNS:
         criterion = column.removeprefix("nb_")
-        joined[f"score_{criterion}"] = normalize.log_min_max_scale(joined[f"{column}_5km"]).round(1)
+        joined[f"score_{criterion}"] = normalize.log_min_max_scale(
+            joined[f"{column}_{NEARBY_SUFFIX}"]
+        ).round(1)
 
     # Averaged in EUR/m2 rather than by averaging the two ranks: the
     # typologies share a unit, so the mean is a real price and stays

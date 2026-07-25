@@ -24,10 +24,7 @@ import pandas as pd
 # reference geometry is WGS84 degrees.
 LAMBERT_93 = "EPSG:2154"
 
-# Roughly a short drive, or a long walk in the dense inner ring. Large
-# enough to bridge commune borders, small enough that "nearby" still means
-# something for a housing decision.
-DEFAULT_RADIUS_KM = 5.0
+DEFAULT_RADIUS_KM = 3.0
 
 
 def _pairs(ref: gpd.GeoDataFrame, radius_km: float) -> pd.DataFrame:

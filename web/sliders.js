@@ -6,6 +6,10 @@
 // the underlying value shown in the popup, so a commune's real numbers stay
 // visible next to its abstract score.
 
+// Radius the equipment counts were aggregated over. Must match
+// NEARBY_SUFFIX in etl/pipeline.py — it is baked into the column names.
+export const NEARBY_RADIUS_KM = 3;
+
 export const MAX_WEIGHT = 6;
 
 export const CRITERIA = [
@@ -23,56 +27,56 @@ export const CRITERIA = [
     key: "commerces",
     label: "Commerces",
     property: "score_commerces",
-    raw: "nb_commerces_5km",
-    unit: "à 5 km",
+    raw: `nb_commerces_${NEARBY_RADIUS_KM}km`,
+    unit: `à ${NEARBY_RADIUS_KM} km`,
     defaultWeight: 2,
   },
   {
     key: "sante",
     label: "Santé",
     property: "score_sante",
-    raw: "nb_sante_5km",
-    unit: "à 5 km",
+    raw: `nb_sante_${NEARBY_RADIUS_KM}km`,
+    unit: `à ${NEARBY_RADIUS_KM} km`,
     defaultWeight: 2,
   },
   {
     key: "enseignement",
     label: "Écoles",
     property: "score_enseignement",
-    raw: "nb_enseignement_5km",
-    unit: "à 5 km",
+    raw: `nb_enseignement_${NEARBY_RADIUS_KM}km`,
+    unit: `à ${NEARBY_RADIUS_KM} km`,
     defaultWeight: 2,
   },
   {
     key: "petite_enfance",
     label: "Petite enfance",
     property: "score_petite_enfance",
-    raw: "nb_petite_enfance_5km",
-    unit: "à 5 km",
+    raw: `nb_petite_enfance_${NEARBY_RADIUS_KM}km`,
+    unit: `à ${NEARBY_RADIUS_KM} km`,
     defaultWeight: 1,
   },
   {
     key: "sports",
     label: "Sport",
     property: "score_sports",
-    raw: "nb_sports_5km",
-    unit: "à 5 km",
+    raw: `nb_sports_${NEARBY_RADIUS_KM}km`,
+    unit: `à ${NEARBY_RADIUS_KM} km`,
     defaultWeight: 2,
   },
   {
     key: "culture",
     label: "Culture",
     property: "score_culture",
-    raw: "nb_culture_5km",
-    unit: "à 5 km",
+    raw: `nb_culture_${NEARBY_RADIUS_KM}km`,
+    unit: `à ${NEARBY_RADIUS_KM} km`,
     defaultWeight: 2,
   },
   {
     key: "transport",
     label: "Gares",
     property: "score_transport",
-    raw: "nb_transport_5km",
-    unit: "à 5 km",
+    raw: `nb_transport_${NEARBY_RADIUS_KM}km`,
+    unit: `à ${NEARBY_RADIUS_KM} km`,
     defaultWeight: 1,
     note: "Gares SNCF et RER seulement, ni métro ni bus",
   },

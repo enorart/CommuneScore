@@ -1,7 +1,7 @@
 import { Map as MapLibreMap, NavigationControl, Popup, setWorkerUrl } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
-import { CRITERIA, initialWeights, renderSliders } from "./sliders.js";
+import { CRITERIA, NEARBY_RADIUS_KM, initialWeights, renderSliders } from "./sliders.js";
 
 // Vite's production bundler (Rolldown) emits maplibre-gl's worker file
 // verbatim with a plain `?url` import, dropping its sibling chunk — the
@@ -109,21 +109,53 @@ function spineHtml(props) {
   }).join("");
 }
 
+// ANIL publishes four rent indicators. Only appartement and maison feed the
+// score (t1_t2 and t3_plus are subsets of appartement — see RENT_COLUMNS in
+// etl/pipeline.py), but all four are worth seeing: which one matters depends
+// entirely on what you are looking for.
+const RENT_DETAIL = [
+  { key: "loyer_m2_appartement", label: "Appartement", scored: true },
+  { key: "loyer_m2_t1_t2", label: "T1–T2", scored: false },
+  { key: "loyer_m2_t3_plus", label: "T3 et plus", scored: false },
+  { key: "loyer_m2_maison", label: "Maison", scored: true },
+];
+
+function rentDetailRows(props) {
+  return RENT_DETAIL.map(
+    ({ key, label, scored }) => `
+      <tr class="rent-detail${scored ? " is-scored" : ""}" hidden>
+        <th>${label}</th>
+        <td class="num" colspan="3">${
+          props[key] == null ? "—" : `${rawFormat.format(props[key])} €/m²`
+        }</td>
+      </tr>`
+  ).join("");
+}
+
 function popupHtml(props) {
   const composite = compositeScore(props);
 
   const rows = CRITERIA.map((criterion) => {
     const score = props[criterion.property];
-    const muted = weights[criterion.key] === 0 ? ' class="is-muted"' : "";
+    const muted = weights[criterion.key] === 0 ? " is-muted" : "";
+    const isRent = criterion.key === "loyer";
+
+    // The rent row expands into the four ANIL typologies; every other row is
+    // a single number and has nothing to expand.
+    const label = isRent
+      ? `<button type="button" class="rent-toggle" aria-expanded="false">${criterion.label}</button>`
+      : criterion.label;
+
     return `
-      <tr${muted}>
-        <th>${criterion.label}</th>
+      <tr class="criterion-row${muted}">
+        <th>${label}</th>
         <td class="num">${formatRaw(criterion, props)}</td>
         <td class="bar">
           <span style="width:${score ?? 0}%;background:${rampColor(score)}"></span>
         </td>
         <td class="num score">${score == null ? "—" : scoreFormat.format(score)}</td>
-      </tr>`;
+      </tr>
+      ${isRent ? rentDetailRows(props) : ""}`;
   }).join("");
 
   return `
@@ -143,8 +175,9 @@ function popupHtml(props) {
       <table>${rows}</table>
 
       <p class="popup-footnote">
-        Loyer moyen appartement et maison, en €/m². Équipements accessibles dans
-        un rayon de 5 km, soit ${numberFormat.format(props.population_5km)} habitants.
+        Loyer : moyenne appartement et maison, en €/m². Équipements accessibles
+        dans un rayon de ${NEARBY_RADIUS_KM} km, soit
+        ${numberFormat.format(props[`population_${NEARBY_RADIUS_KM}km`])} habitants.
         Les scores suivent une échelle logarithmique : passer de 1 à 10 équipements
         pèse plus que de 300 à 3 000.
       </p>
@@ -220,7 +253,22 @@ function map_init() {
       selected = props.code_insee;
       map.setFilter("communes-selected", ["==", ["get", "code_insee"], selected]);
       popup.setLngLat(lngLat).setHTML(popupHtml(props)).addTo(map);
+      wireRentToggle(popup.getElement());
       renderRanking();
+    }
+
+    // setHTML replaces the popup's contents wholesale, so the listener has to
+    // be reattached every time rather than bound once.
+    function wireRentToggle(element) {
+      const toggle = element.querySelector(".rent-toggle");
+      if (!toggle) return;
+
+      const details = [...element.querySelectorAll(".rent-detail")];
+      toggle.addEventListener("click", () => {
+        const open = toggle.getAttribute("aria-expanded") === "true";
+        toggle.setAttribute("aria-expanded", String(!open));
+        for (const row of details) row.hidden = open;
+      });
     }
 
     function renderRanking() {
