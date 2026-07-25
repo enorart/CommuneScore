@@ -27,11 +27,29 @@ uv sync
 uv run python -m etl.pipeline
 ```
 
-Outputs `data/processed/communes_scores.geojson` (commune boundaries + population + rent + equipment counts, keyed by `code_insee`). Raw source files are cached under `data/raw/` on first fetch — delete a specific cache file to force a re-fetch of just that source.
+Outputs `data/processed/communes_scores.geojson` (commune boundaries + population + rent + equipment counts + per-criterion 0–100 scores, keyed by `code_insee`). Raw source files are cached under `data/raw/` on first fetch — delete a specific cache file to force a re-fetch of just that source.
 
 Currently wired in: `communes_ref` (reference geometry/population, Paris split into its 20 arrondissements), `rent`, and `bpe`. The remaining source modules in `etl/sources/` (`ssmsi.py`, `corine.py`, `airparif.py`, `ips_schools.py`) are still stubs — see `PROJECT_PLAN.md` section 7 for build order.
 
-`bpe` writes two kinds of column: seven curated criterion counts (`nb_sports`, `nb_culture`, `nb_enseignement`, `nb_sante`, `nb_commerces`, `nb_transport`, `nb_petite_enfance`), each also expressed as a `_pour_1000_hab` rate, plus the 27 raw BPE sous-domaine counts (`bpe_a1` … `bpe_g1`) so criteria can be re-cut later without re-downloading. The criterion definitions and the reasoning behind them (why the 7 BPE domaines are too coarse to use directly) live at the top of `etl/sources/bpe.py`.
+`bpe` writes seven curated criterion counts (`nb_sports`, `nb_culture`, `nb_enseignement`, `nb_sante`, `nb_commerces`, `nb_transport`, `nb_petite_enfance`) plus the 27 raw BPE sous-domaine counts (`bpe_a1` … `bpe_g1`), so criteria can be re-cut later without re-downloading. The criterion definitions and the reasoning behind them (why the 7 BPE domaines are too coarse to use directly) live at the top of `etl/sources/bpe.py`.
+
+### Scoring
+
+Each criterion ends up as a `score_*` column on a 0–100 scale. Equipment criteria are computed in two steps:
+
+1. **Neighbourhood count** (`etl/common/neighbourhood.py`). Equipment is re-counted over each commune plus everything within 5 km, giving `nb_<criterion>_5km` (and `population_5km` for context). Administrative borders are invisible to a resident — a bakery 500 m away in the next commune counts.
+2. **Log min-max** (`normalize.log_min_max_scale`). `log1p` of that count, min-max scaled to 0–100. The log is the point: going from 1 reachable bakery to 10 changes daily life, going from 300 to 3 000 does not.
+
+Rent skips both steps. `score_loyer` is the inverted percentile rank of `loyer_m2_moyen` (the mean of `loyer_m2_appartement` and `loyer_m2_maison`, in €/m²), so cheaper scores higher. ANIL's `t1_t2` and `t3_plus` are carried through for tooltip detail but not scored — they're subsets of `loyer_m2_appartement` (correlation .96), so including them would weight apartments 3× against houses.
+
+Two approaches were tried and rejected, both visible on the map as an obviously wrong answer:
+
+- **Per-capita rates.** `PROJECT_PLAN.md` design rule 3 asks for these. They rank 300-inhabitant Seine-et-Marne villages above every real option and put Paris in the bottom third — small denominators dominate, and per-capita structurally rewards low density. The log's saturation does the job the rate was meant to do (stop big cities running away with it) without inverting the map.
+- **Percentile rank of counts.** Rank is invariant under any monotonic transform, so ranking `log(count)` and ranking `count` give identical results — ranking cannot express saturation at all. It collapses to a pure density ordering where everything near central Paris wins and nothing else is distinguishable.
+
+Raw counts and prices are kept alongside the scores for tooltips (design rule 4). The **composite** score is deliberately not computed here — weights belong to the user, so `web/app.js` combines the `score_*` columns client-side on every slider move.
+
+Raw counts and rates are kept alongside the scores for tooltips (design rule 4). The **composite** score is deliberately not computed here — weights belong to the user, so `web/app.js` combines the `score_*` columns client-side on every slider move.
 
 ## Frontend
 
@@ -45,7 +63,9 @@ npm run preview  # preview in localhost the static built website
 
 `npm run dev` and `npm run build` both run a `predev`/`prebuild` hook (`web/scripts/sync-data.mjs`) that copies `data/processed/communes_scores.geojson` into `web/public/data/` so Vite can serve it. Re-run `uv run python -m etl.pipeline` any time you want the map to reflect fresher data, then restart `npm run dev` (or just re-run `npm run build`) to pick it up.
 
-The map currently renders every IDF commune (+ Paris arrondissements) as a clickable choropleth colored by average apartment rent; clicking a commune opens a popup with its INSEE code, population, and rent. Sliders/composite scoring land once the remaining ETL sources are implemented.
+The map renders every IDF commune (+ Paris arrondissements) as a choropleth colored by the composite score. One slider per criterion (0–4, where 0 drops the criterion out of the average rather than scoring it zero) recolors the map and rebuilds the ranking live; clicking a commune or a ranking row opens a popup breaking the score down against its raw values.
+
+Two implementation notes: the source uses `promoteId: "code_insee"` so the composite lives in MapLibre feature state and the formula stays in one place in `app.js`, and updates are coalesced to one pass per animation frame — dragging a slider would otherwise queue 1285 feature-state writes per input event. Everything on the page reads from a single colour scale (`RAMP` in `app.js`), so the map, the per-commune "spine" bars in the ranking and the popup bars all mean the same thing and share one legend.
 
 ## Data sources & licenses
 

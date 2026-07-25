@@ -3,23 +3,38 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ville Idéale IDF</title>
+    <title>CommuneScore — Île-de-France</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
     <div id="layout">
       <aside id="sidebar">
-        <h1>Ville Idéale IDF</h1>
-        <p class="subtitle">Choisissez votre commune idéale en Île-de-France</p>
+        <header id="masthead">
+          <h1>CommuneScore</h1>
+          <p class="eyebrow">Île-de-France</p>
+        </header>
 
-        <div id="rent-metrics"><!-- populated by app.js --></div>
+        <section class="panel">
+          <h2 class="panel-title">Vos priorités</h2>
+          <p class="panel-hint">
+            Réglez l’importance de chaque critère. La carte et le classement se
+            recalculent aussitôt.
+          </p>
+          <div id="sliders"><!-- populated by sliders.js --></div>
+        </section>
 
-        <div id="sliders"><!-- populated by sliders.js --></div>
-
-        <div id="ranking">
-          <h2>Classement</h2>
+        <section class="panel">
+          <h2 class="panel-title">
+            Classement <span id="ranking-count" class="panel-count"></span>
+          </h2>
           <ol id="ranking-list"><!-- populated by app.js --></ol>
-        </div>
+        </section>
       </aside>
 
       <main id="map-container">
@@ -29,10 +44,17 @@
     </div>
 
     <footer id="attribution">
-      Fond de carte &copy;
-      <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
-      contributors, via <a href="https://openfreemap.org/" target="_blank" rel="noopener">OpenFreeMap</a>.
-      <!-- Data source attribution added per-source as ETL modules land, see README.md -->
+      <span>
+        Loyers : <a href="https://www.data.gouv.fr/datasets/carte-des-loyers-indicateurs-de-loyers-dannonce-par-commune-en-2025/" target="_blank" rel="noopener">ANIL, Carte des loyers 2025</a>.
+        Équipements : <a href="https://www.insee.fr/fr/statistiques/8217527" target="_blank" rel="noopener">INSEE, Base permanente des équipements 2025</a>.
+        Contours et population : <a href="https://geoservices.ign.fr/adminexpress" target="_blank" rel="noopener">IGN, ADMIN EXPRESS COG</a>.
+        Licence Ouverte / Etalab 2.0.
+      </span>
+      <span>
+        Fond de carte &copy;
+        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>,
+        via <a href="https://openfreemap.org/" target="_blank" rel="noopener">OpenFreeMap</a>.
+      </span>
     </footer>
 
     <script type="module" src="./app.js"></script>
