@@ -45,7 +45,7 @@ export const CRITERIA = [
     property: "score_enseignement",
     raw: `nb_enseignement_${NEARBY_RADIUS_KM}km`,
     unit: `à ${NEARBY_RADIUS_KM} km`,
-    defaultWeight: 2,
+    defaultWeight: 1,
   },
   {
     key: "petite_enfance",
@@ -53,7 +53,7 @@ export const CRITERIA = [
     property: "score_petite_enfance",
     raw: `nb_petite_enfance_${NEARBY_RADIUS_KM}km`,
     unit: `à ${NEARBY_RADIUS_KM} km`,
-    defaultWeight: 1,
+    defaultWeight: 0,
   },
   {
     key: "sports",
@@ -61,7 +61,7 @@ export const CRITERIA = [
     property: "score_sports",
     raw: `nb_sports_${NEARBY_RADIUS_KM}km`,
     unit: `à ${NEARBY_RADIUS_KM} km`,
-    defaultWeight: 2,
+    defaultWeight: 1,
   },
   {
     key: "culture",
@@ -69,7 +69,7 @@ export const CRITERIA = [
     property: "score_culture",
     raw: `nb_culture_${NEARBY_RADIUS_KM}km`,
     unit: `à ${NEARBY_RADIUS_KM} km`,
-    defaultWeight: 2,
+    defaultWeight: 1,
   },
   {
     key: "transport",
@@ -77,7 +77,7 @@ export const CRITERIA = [
     property: "score_transport",
     raw: `nb_lignes_${NEARBY_RADIUS_KM}km`,
     unit: `lignes à ${NEARBY_RADIUS_KM} km`,
-    defaultWeight: 1,
+    defaultWeight: 3,
     note: "Réseau ferré : RER, Transilien, métro, tramway",
   },
 ];

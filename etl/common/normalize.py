@@ -46,7 +46,7 @@ def min_max_scale(series: pd.Series, invert: bool = False) -> pd.Series:
 def log_min_max_scale(series: pd.Series, invert: bool = False) -> pd.Series:
     """Scale a count to 0-100 on a log scale, for metrics that saturate.
 
-    Used for equipment reachable within 5 km. Going from 1 bakery within
+    Used for equipment reachable within a few km. Going from 1 bakery within
     reach to 10 changes daily life; going from 300 to 3000 does not, and a
     scale that treats those two steps alike is lying about access.
 

@@ -103,6 +103,25 @@ a {
   color: var(--ink-soft);
 }
 
+/* ---------- Scope picker ---------- */
+
+.scope-select {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  font-family: inherit;
+  font-size: 0.88rem;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.scope-select:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
 /* ---------- Weight sliders ---------- */
 
 .criterion {
@@ -540,13 +559,13 @@ input[type="range"]:focus-visible {
 
 /* ---------- Attribution ---------- */
 
-.maplibregl-ctrl-attribution.maplibregl-compact-show {
+.maplibregl-ctrl-attrib.maplibregl-compact-show {
   max-width: min(30rem, calc(100vw - 3rem));
   line-height: 1.45;
   color: var(--ink-faint);
 }
 
-.maplibregl-ctrl-attribution a {
+.maplibregl-ctrl-attrib a {
   color: var(--ink-soft);
 }
 

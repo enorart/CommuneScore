@@ -1,4 +1,5 @@
-"""Reference table: code_insee, name, geometry, population for Île-de-France communes.
+"""Reference table: code_insee, name, geometry, population, and the
+département / intercommunalité each commune belongs to.
 
 Every other source module joins onto this table. Built from IGN's AdminExpress
 COG WFS service (data.geopf.fr), which conveniently already carries population
@@ -28,6 +29,18 @@ WFS_BASE_URL = "https://data.geopf.fr/wfs/ows"
 RAW_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "raw"
 COMMUNES_CACHE_PATH = RAW_DIR / "communes_idf.geojson"
 PARIS_ARR_CACHE_PATH = RAW_DIR / "paris_arrondissements.geojson"
+EPCI_CACHE_PATH = RAW_DIR / "epci_idf.geojson"
+
+# Inner-ring communes belong to two intercommunalites at once: the Metropole du
+# Grand Paris, and inside it an etablissement public territorial. MGP spans 131
+# communes across three departments. Prefer the EPT wherever there is one.
+METROPOLE_NATURE = "Métropole"
+
+# Paris is a member of MGP but exercises the EPT functions itself, so its
+# arrondissements have no EPT to inherit. Filing them under a 131-commune
+# metropole would label a 20-arrondissement group with the wrong body's name,
+# so they form their own group, keyed by the commune code build() drops.
+PARIS_EPCI_NAME = "Ville de Paris"
 
 # Simplification tolerance in degrees (~20m) for the final output geometry.
 # AdminExpress ships full-precision boundaries meant for GIS work; simplifying
@@ -77,23 +90,66 @@ def _fetch_paris_arrondissements() -> gpd.GeoDataFrame:
     return gdf
 
 
+def _fetch_epci(sirens: list[str]) -> pd.DataFrame:
+    """Name and nature for the given intercommunalites, from the same COG.
+
+    The layer ships geometry we have no use for -- commune polygons already
+    tile the region -- so only the attributes are kept.
+    """
+    if not EPCI_CACHE_PATH.exists():
+        codes = ",".join(f"'{siren}'" for siren in sirens)
+        gdf = gpd.read_file(_wfs_url("ADMINEXPRESS-COG.LATEST:epci", f"code_siren IN ({codes})"))
+        RAW_DIR.mkdir(parents=True, exist_ok=True)
+        gdf.to_file(EPCI_CACHE_PATH, driver="GeoJSON")
+
+    epci = gpd.read_file(EPCI_CACHE_PATH)
+    return pd.DataFrame(epci[["code_siren", "nom_officiel", "nature"]])
+
+
+def _resolve_epci(communes: gpd.GeoDataFrame) -> pd.DataFrame:
+    """One intercommunalite per commune, as (code_epci, nom_epci).
+
+    AdminExpress lists every intercommunalite a commune belongs to in a single
+    "/"-separated field. See METROPOLE_NATURE for why the metropole loses.
+    """
+    listed = communes["codes_siren_des_epci"].str.split("/")
+
+    epci = _fetch_epci(sorted({siren for codes in listed for siren in codes}))
+    names = epci.set_index("code_siren")["nom_officiel"]
+    natures = epci.set_index("code_siren")["nature"]
+
+    def pick(codes: list[str]) -> str:
+        local = [code for code in codes if natures.get(code) != METROPOLE_NATURE]
+        return (local or codes)[0]
+
+    code = listed.map(pick)
+    return pd.DataFrame({"code_epci": code, "nom_epci": code.map(names)}, index=communes.index)
+
+
 def build() -> gpd.GeoDataFrame:
     """Return a GeoDataFrame indexed by code_insee with columns:
-    name, population, geometry. Paris (75056) is replaced by its 20
-    arrondissements (75101-75120).
+    name, population, code_departement, code_epci, nom_epci, geometry.
+    Paris (75056) is replaced by its 20 arrondissements (75101-75120).
     """
     communes = _fetch_communes()
     communes = communes.rename(columns={"nom_officiel": "name"})
     communes = communes[communes["code_insee"] != PARIS_CODE]
+    communes[["code_epci", "nom_epci"]] = _resolve_epci(communes)
 
     paris_arr = _fetch_paris_arrondissements()
     paris_arr = paris_arr.rename(columns={"nom_officiel": "name"})
+    paris_arr["code_epci"] = PARIS_CODE
+    paris_arr["nom_epci"] = PARIS_EPCI_NAME
 
     combined = gpd.GeoDataFrame(
         pd.concat([communes, paris_arr], ignore_index=True),
         crs=communes.crs,
     ).set_index("code_insee")
+
+    # Holds for arrondissements too: 751xx -> 75.
+    combined["code_departement"] = combined.index.str[:2]
+
     combined["geometry"] = combined.geometry.simplify(
         SIMPLIFY_TOLERANCE_DEG, preserve_topology=True
     )
-    return combined[["name", "population", "geometry"]]
+    return combined[["name", "population", "code_departement", "code_epci", "nom_epci", "geometry"]]

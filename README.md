@@ -31,7 +31,7 @@ Outputs `data/processed/communes_scores.geojson` (commune boundaries + populatio
 
 Currently wired in: `communes_ref` (reference geometry/population, Paris split into its 20 arrondissements), `rent`, `bpe`, and `idfm_gares`. The remaining source modules in `etl/sources/` (`ssmsi.py`, `corine.py`, `airparif.py`, `ips_schools.py`) are still stubs — see `PROJECT_PLAN.md` section 7 for build order.
 
-`bpe` writes seven curated criterion counts (`nb_sports`, `nb_culture`, `nb_enseignement`, `nb_sante`, `nb_commerces`, `nb_transport`, `nb_petite_enfance`) plus the 27 raw BPE sous-domaine counts (`bpe_a1` … `bpe_g1`), so criteria can be re-cut later without re-downloading. The criterion definitions and the reasoning behind them (why the 7 BPE domaines are too coarse to use directly) live at the top of `etl/sources/bpe.py`.
+`bpe` writes six curated criterion counts (`nb_sports`, `nb_culture`, `nb_enseignement`, `nb_sante`, `nb_commerces`, `nb_petite_enfance`) plus the 27 raw BPE sous-domaine counts (`bpe_a1` … `bpe_g1`), so criteria can be re-cut later without re-downloading. The criterion definitions and the reasoning behind them (why the 7 BPE domaines are too coarse to use directly) live at the top of `etl/sources/bpe.py`.
 
 Transport does **not** come from BPE. Its transport domain is 99% taxi-VTC company registrations (54,895 rows out of 55,328 in IDF) and the stations it does carry are SNCF/RER only — no métro, no tram. `etl/sources/idfm_gares.py` replaces it with Île-de-France Mobilités' rail network: 996 stations across 50 lines, every mode, named the way a rider names them (`RER A`, `TRAIN H`, `METRO 4`, `TRAM 3a`).
 
@@ -53,6 +53,14 @@ Two approaches were tried and rejected, both visible on the map as an obviously 
 
 Raw counts and prices are kept alongside the scores for tooltips (design rule 4). The **composite** score is deliberately not computed here — weights belong to the user, so `web/app.js` combines the `score_*` columns client-side on every slider move.
 
+### Scope
+
+Scores are relative, so the set they are relative *to* is the user's choice: all of Île-de-France, one of the 8 départements, or one of the 63 intercommunalités. Île-de-France is the wrong yardstick once a search has been narrowed — inside a single intercommunalité every commune lands in the same narrow band and the ranking stops discriminating.
+
+Changing the scope re-runs the whole normalization over the selected communes only, in the browser: `web/scoring.js` is a port of `etl/common/normalize.py` plus the scoring block of `etl/pipeline.py`, working from the raw columns the GeoJSON already carries. The ETL's own `score_*` columns are the Île-de-France baseline and the reference the port is checked against — at that scope the two agree exactly on all 1285 communes × 8 criteria. The catch to keep in mind is that a small scope forces a 0 and a 100 by construction: in a 4-commune intercommunalité, the best and worst are pinned to the ends of the scale however close together they really are.
+
+The grouping comes from `code_epci` / `nom_epci`, written by `communes_ref.build()`. Inner-ring communes belong to two intercommunalités at once — the Métropole du Grand Paris plus, inside it, an EPT — and the EPT wins: MGP is 131 communes across three départements, too coarse to compare within. Paris's 20 arrondissements are their own group ("Ville de Paris"), since Paris is in MGP but exercises the EPT functions itself and so has no EPT to inherit.
+
 ## Frontend
 
 ```bash
@@ -65,7 +73,7 @@ npm run preview  # preview in localhost the static built website
 
 `npm run dev` and `npm run build` both run a `predev`/`prebuild` hook (`web/scripts/sync-data.mjs`) that copies `data/processed/communes_scores.geojson` into `web/public/data/` so Vite can serve it. Re-run `uv run python -m etl.pipeline` any time you want the map to reflect fresher data, then restart `npm run dev` (or just re-run `npm run build`) to pick it up.
 
-The map renders every IDF commune (+ Paris arrondissements) as a choropleth colored by the composite score. One slider per criterion (0 to `MAX_WEIGHT` in `sliders.js`, where 0 drops the criterion out of the average rather than scoring it zero) recolors the map and rebuilds the ranking live; clicking a commune or a ranking row opens a popup breaking the score down against its raw values. The rent and transport rows expand — rent into all four ANIL typologies (with the two that feed the score marked), transport into the commune's stations and every line reachable within 3 km. They behave as an accordion: eight criteria plus two open sections is taller than MapLibre has room for on either side of the click point.
+The map renders every IDF commune (+ Paris arrondissements) as a choropleth colored by the composite score. The scope picker at the top of the sidebar sets the comparison set (see above); communes outside it stay drawn but faded and unclickable, so a small intercommunalité is still placeable on the region. One slider per criterion (0 to `MAX_WEIGHT` in `sliders.js`, where 0 drops the criterion out of the average rather than scoring it zero) recolors the map and rebuilds the ranking live; clicking a commune or a ranking row opens a popup breaking the score down against its raw values. The rent and transport rows expand — rent into all four ANIL typologies (with the two that feed the score marked), transport into the commune's stations and every line reachable within 3 km. They behave as an accordion: eight criteria plus two open sections is taller than MapLibre has room for on either side of the click point.
 
 Two implementation notes: the source uses `promoteId: "code_insee"` so the composite lives in MapLibre feature state and the formula stays in one place in `app.js`, and updates are coalesced to one pass per animation frame — dragging a slider would otherwise queue 1285 feature-state writes per input event. Everything on the page reads from a single colour scale (`RAMP` in `app.js`), so the map, the per-commune "spine" bars in the ranking and the popup bars all mean the same thing and share one legend.
 
@@ -77,7 +85,7 @@ Wired in so far:
 
 | Data | Source | License |
 |---|---|---|
-| Commune boundaries + population | IGN — ADMIN EXPRESS COG, via the Géoplateforme WFS (`data.geopf.fr`) | Licence Ouverte / Etalab 2.0 |
+| Commune boundaries + population + intercommunalités | IGN — ADMIN EXPRESS COG, via the Géoplateforme WFS (`data.geopf.fr`) | Licence Ouverte / Etalab 2.0 |
 | Rent (€/m²) | ANIL — Carte des loyers 2025, via data.gouv.fr | Licence Ouverte / Etalab 2.0 |
 | Equipment counts | INSEE — Base permanente des équipements 2025 | Licence Ouverte / Etalab 2.0 |
 | Rail stations and lines | Île-de-France Mobilités — Gares et stations du réseau ferré d'Île-de-France (par ligne) | Licence Ouverte v2.0 (Etalab) |

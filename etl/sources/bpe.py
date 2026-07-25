@@ -14,9 +14,9 @@ Three things about the file shape drive the filtering below:
     level. Keeping only leaf FACILITY_TYPE rows avoids counting them twice.
 
 Known limitations, worth remembering before scoring on these numbers:
-  - transport coverage: BPE only knows SNCF/RER gares de
-    voyageurs, not metro, tram or bus.
-  - counts stop at the commune border.
+  - counts stop at the commune border, and BPE publishes no coordinates, so
+    neighbourhood.aggregate can only reach whole neighbouring communes rather
+    than measure to the equipments themselves.
   - equipments are counted, not their capacity (size).
 """
 

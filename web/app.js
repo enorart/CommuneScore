@@ -2,6 +2,8 @@ import { Map as MapLibreMap, NavigationControl, Popup, setWorkerUrl } from "mapl
 import "maplibre-gl/dist/maplibre-gl.css";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { CRITERIA, NEARBY_RADIUS_KM, initialWeights, renderSliders } from "./sliders.js";
+import { buildScopes, renderScopeSelect } from "./scopes.js";
+import { applyScores } from "./scoring.js";
 
 // Vite's production bundler (Rolldown) emits maplibre-gl's worker file
 // verbatim with a plain `?url` import, dropping its sibling chunk — the
@@ -68,6 +70,11 @@ const scoreFormat = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 })
 const rawFormat = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 });
 
 const weights = initialWeights();
+
+// The comparison set the scores are measured against. Replaced wholesale by
+// the scope picker; scoring.js rewrites every score_* when it changes.
+let scope = null;
+let scopeCount = 0;
 
 // Weighted average of the enabled criteria, on the same 0-100 scale as its
 // parts. Criteria set to 0 drop out entirely rather than pulling the result
@@ -228,7 +235,8 @@ function popupHtml(props) {
         dans un rayon de ${NEARBY_RADIUS_KM} km, soit
         ${numberFormat.format(props[`population_${NEARBY_RADIUS_KM}km`])} habitants.
         Les scores suivent une échelle logarithmique : passer de 1 à 10 équipements
-        pèse plus que de 300 à 3 000.
+        pèse plus que de 300 à 3 000. Ils sont relatifs aux
+        ${numberFormat.format(scopeCount)} communes de « ${scope.label} » : un 100 est le meilleur de cette sélection, pas de la région.
       </p>
     </div>
   `;
@@ -275,7 +283,14 @@ function map_init() {
       id: "communes-fill",
       type: "fill",
       source: "communes",
-      paint: { "fill-color": fillColorExpression(), "fill-opacity": 0.78 },
+      paint: {
+        "fill-color": fillColorExpression(),
+        // Out-of-scope communes stay on the map, faded: a small
+        // intercommunalité floating on the basemap with nothing around it is
+        // impossible to place. Their composite is null, so they are already
+        // painted the no-data grey.
+        "fill-opacity": ["case", ["boolean", ["feature-state", "inScope"], true], 0.78, 0.22],
+      },
     });
 
     map.addLayer({
@@ -296,6 +311,15 @@ function map_init() {
     const popup = new Popup({ closeButton: true, closeOnClick: true, maxWidth: "340px" });
     const rankingList = document.getElementById("ranking-list");
     const rankingCount = document.getElementById("ranking-count");
+
+    // MapLibre hands click events its own copy of the properties, taken when
+    // the source was added — it never sees the scores applyScores() writes.
+    // Everything downstream of a click reads from here instead.
+    const byCode = new Map(communes.features.map((f) => [f.properties.code_insee, f]));
+
+    const scopes = buildScopes(communes.features);
+    scope = scopes[0];
+    let inScope = communes.features;
 
     let selected = null;
 
@@ -340,12 +364,13 @@ function map_init() {
     }
 
     function renderRanking() {
-      const ranked = communes.features
+      const ranked = inScope
         .map((feature) => ({ props: feature.properties, score: compositeScore(feature.properties) }))
         .filter((entry) => entry.score != null)
         .sort((a, b) => b.score - a.score);
 
-      rankingCount.textContent = `${RANKING_LENGTH} sur ${numberFormat.format(ranked.length)}`;
+      const shown = Math.min(RANKING_LENGTH, ranked.length);
+      rankingCount.textContent = `${shown} sur ${numberFormat.format(ranked.length)}`;
 
       rankingList.innerHTML = ranked
         .slice(0, RANKING_LENGTH)
@@ -381,16 +406,61 @@ function map_init() {
       });
     }
 
-    renderSliders(document.getElementById("sliders"), weights, refresh);
-    renderLegend(document.getElementById("legend"));
-    refresh();
+    // Rescoring touches every criterion on every commune, so it runs on a
+    // scope change only — not on every slider move, which merely reweights
+    // scores that are already there.
+    function rescope(next) {
+      scope = next;
+      inScope = communes.features.filter((feature) => scope.matches(feature.properties));
+      scopeCount = inScope.length;
 
-    map.on("click", "communes-fill", (event) => {
-      select(event.features[0].properties, event.lngLat);
+      applyScores(communes.features, inScope);
+
+      for (const feature of communes.features) {
+        map.setFeatureState(
+          { source: "communes", id: feature.properties.code_insee },
+          { inScope: scope.matches(feature.properties) }
+        );
+      }
+
+      // An open popup is now showing scores from the previous comparison set.
+      // Redraw it where the commune survived the change, drop it where it did
+      // not — watching one commune's numbers move as you narrow the scope is
+      // the clearest demonstration of what this control does.
+      if (selected && scope.matches(byCode.get(selected).properties)) {
+        popup.setHTML(popupHtml(byCode.get(selected).properties));
+        wireDetailToggles(popup);
+      } else if (selected) {
+        selected = null;
+        map.setFilter("communes-selected", ["==", ["get", "code_insee"], ""]);
+        popup.remove();
+      }
+
+      refresh();
+    }
+
+    renderScopeSelect(document.getElementById("scope"), scopes, (next) => {
+      rescope(next);
+      if (next.id !== scopes[0].id) map.fitBounds(bounds(inScope), { padding: 40 });
+      else map.easeTo({ center: IDF_CENTER, zoom: IDF_ZOOM });
     });
 
-    map.on("mouseenter", "communes-fill", () => {
-      map.getCanvas().style.cursor = "pointer";
+    renderSliders(document.getElementById("sliders"), weights, refresh);
+    renderLegend(document.getElementById("legend"));
+    rescope(scope);
+
+    map.on("click", "communes-fill", (event) => {
+      const feature = byCode.get(event.features[0].properties.code_insee);
+      if (!feature || !scope.matches(feature.properties)) return;
+      select(feature.properties, event.lngLat);
+    });
+
+    // mousemove rather than mouseenter: the cursor has to answer "is *this*
+    // commune clickable", and moving between two communes never re-fires
+    // mouseenter.
+    map.on("mousemove", "communes-fill", (event) => {
+      const feature = byCode.get(event.features[0].properties.code_insee);
+      map.getCanvas().style.cursor = feature && scope.matches(feature.properties) ? "pointer" : "";
     });
     map.on("mouseleave", "communes-fill", () => {
       map.getCanvas().style.cursor = "";
@@ -419,10 +489,37 @@ function map_init() {
   });
 }
 
+function outerRings(geometry) {
+  return geometry.type === "Polygon" ? [geometry.coordinates[0]] : geometry.coordinates.map((p) => p[0]);
+}
+
+// [[west, south], [east, north]] over a set of features, for fitBounds.
+function bounds(features) {
+  let west = Infinity;
+  let south = Infinity;
+  let east = -Infinity;
+  let north = -Infinity;
+
+  for (const feature of features) {
+    for (const ring of outerRings(feature.geometry)) {
+      for (const [lng, lat] of ring) {
+        if (lng < west) west = lng;
+        if (lng > east) east = lng;
+        if (lat < south) south = lat;
+        if (lat > north) north = lat;
+      }
+    }
+  }
+  return [
+    [west, south],
+    [east, north],
+  ];
+}
+
 // Average of the outer-ring vertices — close enough to place a popup and a
 // map centre, and far cheaper than a true centroid on 1285 polygons.
 function centroid(geometry) {
-  const rings = geometry.type === "Polygon" ? [geometry.coordinates[0]] : geometry.coordinates.map((p) => p[0]);
+  const rings = outerRings(geometry);
   let x = 0;
   let y = 0;
   let n = 0;
