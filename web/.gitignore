@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Synced from ../data/processed by scripts/sync-data.mjs (predev/prebuild)
+public/data
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

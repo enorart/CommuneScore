@@ -27,16 +27,24 @@ uv sync
 uv run python -m etl.pipeline
 ```
 
-Outputs `data/processed/communes_scores.geojson`. Each source module in `etl/sources/` is currently a stub — see `PROJECT_PLAN.md` section 7 for build order.
+Outputs `data/processed/communes_scores.geojson` (commune boundaries + population + rent, keyed by `code_insee`). Raw source files are cached under `data/raw/` on first fetch — delete a specific cache file to force a re-fetch of just that source.
+
+Currently wired in: `communes_ref` (reference geometry/population, Paris split into its 20 arrondissements) and `rent`. The other source modules in `etl/sources/` (`bpe.py`, `ssmsi.py`, `corine.py`, `airparif.py`, `ips_schools.py`) are still stubs — see `PROJECT_PLAN.md` section 7 for build order.
+
+If a network fetch fails with `SSLCertVerificationError`, add `--native-tls` (or `--system-certs`) to the `uv` command — some networks intercept TLS with a root CA that's in the OS trust store but not in Python's default `certifi` bundle.
 
 ## Frontend
 
 ```bash
 cd web
 npm install
-npm run dev      # local dev server
-npm run build     # outputs to web/dist, deployed by the GitHub Action
+npm run dev      # local dev server at http://localhost:5173
+npm run build    # outputs to web/dist, deployed by the GitHub Action
 ```
+
+`npm run dev` and `npm run build` both run a `predev`/`prebuild` hook (`web/scripts/sync-data.mjs`) that copies `data/processed/communes_scores.geojson` into `web/public/data/` so Vite can serve it. Re-run `uv run python -m etl.pipeline` any time you want the map to reflect fresher data, then restart `npm run dev` (or just re-run `npm run build`) to pick it up.
+
+The map currently renders every IDF commune (+ Paris arrondissements) as a clickable choropleth colored by average apartment rent; clicking a commune opens a popup with its INSEE code, population, and rent. Sliders/composite scoring land once the remaining ETL sources are implemented.
 
 ## Data sources & licenses
 

@@ -29,6 +29,11 @@ RAW_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "raw"
 COMMUNES_CACHE_PATH = RAW_DIR / "communes_idf.geojson"
 PARIS_ARR_CACHE_PATH = RAW_DIR / "paris_arrondissements.geojson"
 
+# Simplification tolerance in degrees (~20m) for the final output geometry.
+# AdminExpress ships full-precision boundaries meant for GIS work; simplifying
+# here cuts the output GeoJSON with no visible difference at commune-choropleth zoom levels.
+SIMPLIFY_TOLERANCE_DEG = 0.0002
+
 
 def _wfs_url(typenames: str, cql_filter: str) -> str:
     params = {
@@ -88,4 +93,7 @@ def build() -> gpd.GeoDataFrame:
         pd.concat([communes, paris_arr], ignore_index=True),
         crs=communes.crs,
     ).set_index("code_insee")
+    combined["geometry"] = combined.geometry.simplify(
+        SIMPLIFY_TOLERANCE_DEG, preserve_topology=True
+    )
     return combined[["name", "population", "geometry"]]
