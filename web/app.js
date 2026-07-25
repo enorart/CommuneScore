@@ -19,6 +19,15 @@ const DATA_URL = "./data/communes_scores.geojson";
 
 const RANKING_LENGTH = 40;
 
+// Source credits live in MapLibre's attribution control
+const SOURCE_ATTRIBUTION = [
+  'Loyers : <a href="https://www.data.gouv.fr/datasets/carte-des-loyers-indicateurs-de-loyers-dannonce-par-commune-en-2025/" target="_blank" rel="noopener">ANIL 2025</a>',
+  'Équipements : <a href="https://www.insee.fr/fr/statistiques/8217527" target="_blank" rel="noopener">INSEE BPE 2025</a>',
+  'Réseau ferré : <a href="https://data.iledefrance-mobilites.fr/explore/dataset/emplacement-des-gares-idf/" target="_blank" rel="noopener">Île-de-France Mobilités</a>',
+  'Contours et population : <a href="https://geoservices.ign.fr/adminexpress" target="_blank" rel="noopener">IGN ADMIN EXPRESS COG</a>',
+  "Licence Ouverte / Etalab 2.0",
+];
+
 // The one colour scale on the page. The map, the ranking spines and the
 // popup bars all read from it, so a shade means the same thing everywhere
 // and a single legend explains all three. Sand through to deep marine —
@@ -245,6 +254,7 @@ function map_init() {
     style: "https://tiles.openfreemap.org/styles/positron",
     center: IDF_CENTER,
     zoom: IDF_ZOOM,
+    attributionControl: { compact: true, customAttribution: SOURCE_ATTRIBUTION },
   });
 
   map.addControl(new NavigationControl(), "top-right");

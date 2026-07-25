@@ -1,8 +1,3 @@
-/* The map carries every colour on this page. The interface around it is
-   deliberately achromatic — paper, ink, hairlines — so nothing competes
-   with the choropleth, and the one accent (vermilion) means exactly one
-   thing: "this is the commune you selected". */
-
 :root {
   --sidebar-width: 384px;
 
@@ -545,18 +540,13 @@ input[type="range"]:focus-visible {
 
 /* ---------- Attribution ---------- */
 
-#attribution {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 1rem;
-  padding: 0.4rem 1.5rem;
-  border-top: 1px solid var(--rule);
-  font-size: 0.66rem;
-  line-height: 1.4;
+.maplibregl-ctrl-attribution.maplibregl-compact-show {
+  max-width: min(30rem, calc(100vw - 3rem));
+  line-height: 1.45;
   color: var(--ink-faint);
 }
 
-#attribution a {
+.maplibregl-ctrl-attribution a {
   color: var(--ink-soft);
 }
 

@@ -82,7 +82,7 @@ Wired in so far:
 | Equipment counts | INSEE — Base permanente des équipements 2025 | Licence Ouverte / Etalab 2.0 |
 | Rail stations and lines | Île-de-France Mobilités — Gares et stations du réseau ferré d'Île-de-France (par ligne) | Licence Ouverte v2.0 (Etalab) |
 
-Attribution for these is surfaced in the site footer (`#attribution` in `web/index.html`); add a row here and a link there as each remaining source lands.
+Attribution for these is surfaced behind the map's (i) button — MapLibre's attribution control, fed by `SOURCE_ATTRIBUTION` in `web/app.js` and shown alongside the basemap's own credits. Add a row here and an entry there as each remaining source lands.
 
 ## Non-goals (v1)
 
