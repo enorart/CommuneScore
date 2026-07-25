@@ -27,9 +27,11 @@ uv sync
 uv run python -m etl.pipeline
 ```
 
-Outputs `data/processed/communes_scores.geojson` (commune boundaries + population + rent, keyed by `code_insee`). Raw source files are cached under `data/raw/` on first fetch — delete a specific cache file to force a re-fetch of just that source.
+Outputs `data/processed/communes_scores.geojson` (commune boundaries + population + rent + equipment counts, keyed by `code_insee`). Raw source files are cached under `data/raw/` on first fetch — delete a specific cache file to force a re-fetch of just that source.
 
-Currently wired in: `communes_ref` (reference geometry/population, Paris split into its 20 arrondissements) and `rent`. The other source modules in `etl/sources/` (`bpe.py`, `ssmsi.py`, `corine.py`, `airparif.py`, `ips_schools.py`) are still stubs — see `PROJECT_PLAN.md` section 7 for build order.
+Currently wired in: `communes_ref` (reference geometry/population, Paris split into its 20 arrondissements), `rent`, and `bpe`. The remaining source modules in `etl/sources/` (`ssmsi.py`, `corine.py`, `airparif.py`, `ips_schools.py`) are still stubs — see `PROJECT_PLAN.md` section 7 for build order.
+
+`bpe` writes two kinds of column: seven curated criterion counts (`nb_sports`, `nb_culture`, `nb_enseignement`, `nb_sante`, `nb_commerces`, `nb_transport`, `nb_petite_enfance`), each also expressed as a `_pour_1000_hab` rate, plus the 27 raw BPE sous-domaine counts (`bpe_a1` … `bpe_g1`) so criteria can be re-cut later without re-downloading. The criterion definitions and the reasoning behind them (why the 7 BPE domaines are too coarse to use directly) live at the top of `etl/sources/bpe.py`.
 
 ## Frontend
 
@@ -47,7 +49,17 @@ The map currently renders every IDF commune (+ Paris arrondissements) as a click
 
 ## Data sources & licenses
 
-All datasets are French open data, mostly under Licence Ouverte / Etalab 2.0 or ODbL. Full source list and access method: `PROJECT_PLAN.md` section 3. Attribution is surfaced in the site footer (`#attribution` in `web/index.html`) — **TODO: fill in per-source attribution text once real data is wired in.**
+All datasets are French open data, mostly under Licence Ouverte / Etalab 2.0 or ODbL. Full source list and access method: `PROJECT_PLAN.md` section 3.
+
+Wired in so far:
+
+| Data | Source | License |
+|---|---|---|
+| Commune boundaries + population | IGN — ADMIN EXPRESS COG, via the Géoplateforme WFS (`data.geopf.fr`) | Licence Ouverte / Etalab 2.0 |
+| Rent (€/m²) | ANIL — Carte des loyers 2025, via data.gouv.fr | Licence Ouverte / Etalab 2.0 |
+| Equipment counts | INSEE — Base permanente des équipements 2025 | Licence Ouverte / Etalab 2.0 |
+
+Attribution is surfaced in the site footer (`#attribution` in `web/index.html`) — **TODO: fill in per-source attribution text once real data is wired in.**
 
 ## Non-goals (v1)
 
