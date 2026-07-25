@@ -1,7 +1,10 @@
-"""Orchestrates all ETL sources, joins on code_insee, normalizes, and writes
-the final static dataset consumed by the frontend.
+"""Orchestrates all ETL sources, joins them on code_insee, and writes the
+static dataset the frontend consumes.
 
-Output: data/processed/communes_scores.geojson
+Output: data/processed/communes_scores.geojson — raw values only. Nothing here
+is scored: a 0-100 score only means something relative to a set of communes,
+and which set that is belongs to the user, who picks it in the browser (see
+web/scoring.js). This pipeline's job is to make the raw values reachable.
 """
 
 from pathlib import Path
@@ -9,7 +12,7 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 
-from etl.common import communes_ref, neighbourhood, normalize
+from etl.common import communes_ref, neighbourhood
 from etl.sources import bpe, idfm_gares, rent
 
 OUTPUT_PATH = Path(__file__).resolve().parent.parent / "data" / "processed" / "communes_scores.geojson"
@@ -30,8 +33,9 @@ def _rail_access(ref: gpd.GeoDataFrame) -> pd.DataFrame:
     """Rail access per commune, from IDFM station and line data.
 
     Cannot go through neighbourhood.aggregate for two separate reasons:
-    stations and lines have to be counted distinctly,
-    and the data has real coordinates, so reach is measured to the stations
+    stations and lines have to be counted distinctly -- three stops on the same
+    RER get you to the same places, three different lines do not -- and the
+    data has real coordinates, so reach is measured to the stations themselves
     rather than to whole neighbouring communes.
     """
     stations = idfm_gares.fetch()
@@ -88,25 +92,8 @@ def main() -> None:
     # corine_df = corine.fetch()
     # airparif_df = airparif.fetch()
 
-    # Per-criterion 0-100 scores. The composite is deliberately NOT computed
-    # here : weights are the user's to set (slider)
-    for column in bpe.CRITERION_COLUMNS:
-        criterion = column.removeprefix("nb_")
-        joined[f"score_{criterion}"] = normalize.log_min_max_scale(
-            joined[f"{column}_{NEARBY_SUFFIX}"]
-        ).round(1)
-
-    # Transport scores on distinct lines reachable, not stations: three stops
-    # on the same RER get you to the same places, three different lines do
-    # not. log1p means the jump from no rail at all to one line is the biggest step
-    joined["score_transport"] = normalize.log_min_max_scale(
-        joined[f"nb_lignes_{NEARBY_SUFFIX}"]
-    ).round(1)
-
-    # Averaged in EUR/m2
-    # Cheaper is better, invert=True.
+    # The single rent figure the rent score is built from, in EUR/m2.
     joined["loyer_m2_moyen"] = joined[RENT_COLUMNS].mean(axis=1).round(2)
-    joined["score_loyer"] = normalize.percentile_rank(joined["loyer_m2_moyen"], invert=True).round(1)
 
     # Combine all cleaned metrics
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)

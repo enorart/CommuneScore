@@ -76,14 +76,14 @@ ville-ideale-idf/
 │   │   ├── corine.py            # % espaces naturels - API/download + spatial calc via geopandas
 │   │   └── airparif.py          # PM2.5/NO2 moyennes - API pull
 │   ├── common/
-│   │   ├── communes_ref.py      # reference table: code_insee, name, geometry, population
-│   │   └── normalize.py         # shared min-max / z-score helpers (0-100 scale)
+│   │   ├── communes_ref.py      # reference table: code_insee, name, geometry, population, epci
+│   │   └── neighbourhood.py     # re-count metrics over a commune + everything within N km
 │   └── pipeline.py              # orchestrates all sources -> joins on code_insee -> one output file
 │
 ├── data/
 │   ├── raw/                     # gitignored, large, re-downloadable from source
 │   └── processed/
-│       └── communes_scores.geojson   # FINAL output: geometry + raw values + normalized scores per commune
+│       └── communes_scores.geojson   # FINAL output: geometry + raw values per commune (scoring happens in the browser)
 │
 ├── web/
 │   ├── index.html

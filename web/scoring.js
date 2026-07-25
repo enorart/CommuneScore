@@ -1,14 +1,11 @@
 // Per-criterion 0-100 scores, recomputed in the browser over whatever set of
 // communes the user has scoped to (see scopes.js).
 //
-// This is a port of etl/common/normalize.py and of the scoring block in
-// etl/pipeline.py. The ETL still writes score_* columns for all of
-// Île-de-France; those are the baseline and the reference this port is checked
-// against — at the Île-de-France scope the two must agree.
-//
-// Scoring has to happen here rather than in the ETL because the comparison set
-// is the user's choice: what counts as good transport among 1285 communes is
-// not what counts as good transport inside one intercommunalité.
+// This is the only place scoring happens. The ETL writes raw values and
+// nothing else, because a 0-100 score only means something relative to a set
+// of communes, and which set that is belongs to the user: what counts as good
+// transport among 1285 communes is not what counts as good transport inside
+// one intercommunalité.
 
 import { CRITERIA } from "./sliders.js";
 
@@ -27,7 +24,7 @@ export function minMaxScale(values, { invert = false } = {}) {
 
     // Every commune identical — reachable in a small scope, where a handful of
     // rural communes can share a count exactly. 50 rather than a division by
-    // zero, matching normalize.min_max_scale.
+    // zero.
     if (high === low) return all.map((value) => (value == null ? null : 50));
 
     return all.map((value) => {
@@ -81,10 +78,10 @@ for (const { key } of CRITERIA) {
 /**
  * Score `inScope` against itself and write the results onto every feature.
  *
- * Scores land on `feature.properties.score_*`, replacing what the ETL wrote,
- * so the rest of app.js keeps reading `props[criterion.property]` and knows
- * nothing about scopes. Features outside the scope are scored `null`, which
- * compositeScore() already treats as "no answer".
+ * Scores land on `feature.properties.score_*`, so the rest of app.js reads
+ * them as ordinary properties and knows nothing about scopes. Features outside
+ * the scope are scored `null`, which compositeScore() already treats as
+ * "no answer".
  */
 export function applyScores(features, inScope) {
   for (const feature of features) {
