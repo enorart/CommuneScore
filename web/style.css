@@ -394,6 +394,45 @@ input[type="range"]:focus-visible {
   color: var(--ink-faint);
 }
 
+/* The two zones the commune belongs to, each of them selectable — this is how
+   a comparison set gets picked off the map instead of out of a list of 63. */
+.popup-zones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.45rem 0 0;
+}
+
+.zone-link {
+  padding: 0.15rem 0.42rem;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--paper);
+  font: inherit;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.zone-link:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+
+.zone-link:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+/* The zone already being compared within: shown, but nothing to click. */
+.zone-link.is-active {
+  border-color: transparent;
+  background: var(--paper-sunk);
+  color: var(--ink-faint);
+  cursor: default;
+}
+
 .popup-score {
   display: flex;
   align-items: baseline;

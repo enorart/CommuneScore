@@ -2,7 +2,7 @@ import { Map as MapLibreMap, NavigationControl, Popup, setWorkerUrl } from "mapl
 import "maplibre-gl/dist/maplibre-gl.css";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { CRITERIA, NEARBY_RADIUS_KM, initialWeights, renderSliders } from "./sliders.js";
-import { buildScopes, renderScopeSelect } from "./scopes.js";
+import { buildScopes, renderScopeSelect, siblingZone, zonesOf } from "./scopes.js";
 import { applyScores } from "./scoring.js";
 
 // Vite's production bundler (Rolldown) emits maplibre-gl's worker file
@@ -189,6 +189,19 @@ function detailRows(key, props) {
     .join("");
 }
 
+// Where the commune sits, and — since the scope picker speaks the same ids —
+// a way to compare it against either zone. Reaching an intercommunalité by
+// clicking a commune inside it beats finding its name among 63 in a list.
+function zoneLinks(props) {
+  return zonesOf(props)
+    .map(({ id, label }) => {
+      const active = id === scope.id ? " is-active" : "";
+      const title = active ? "Sélection actuelle" : `Comparer dans ${label}`;
+      return `<button type="button" class="zone-link${active}" data-scope="${id}" title="${title}">${label}</button>`;
+    })
+    .join("");
+}
+
 function popupHtml(props) {
   const composite = compositeScore(props);
 
@@ -221,6 +234,7 @@ function popupHtml(props) {
         <p class="popup-meta">
           ${props.code_insee} · ${numberFormat.format(props.population)} hab.
         </p>
+        <p class="popup-zones">${zoneLinks(props)}</p>
       </header>
 
       <div class="popup-score" style="border-color:${rampColor(composite)}">
@@ -327,14 +341,20 @@ function map_init() {
       selected = props.code_insee;
       map.setFilter("communes-selected", ["==", ["get", "code_insee"], selected]);
       popup.setLngLat(lngLat).setHTML(popupHtml(props)).addTo(map);
-      wireDetailToggles(popup);
+      wirePopup(popup);
       renderRanking();
     }
 
     // setHTML replaces the popup's contents wholesale, so listeners have to
     // be reattached every time rather than bound once.
-    function wireDetailToggles(instance) {
+    function wirePopup(instance) {
       const element = instance.getElement();
+
+      for (const link of element.querySelectorAll(".zone-link:not(.is-active)")) {
+        link.addEventListener("click", () => {
+          selectScope(scopes.find((candidate) => candidate.id === link.dataset.scope));
+        });
+      }
 
       const toggles = [...element.querySelectorAll(".detail-toggle")];
 
@@ -429,7 +449,7 @@ function map_init() {
       // the clearest demonstration of what this control does.
       if (selected && scope.matches(byCode.get(selected).properties)) {
         popup.setHTML(popupHtml(byCode.get(selected).properties));
-        wireDetailToggles(popup);
+        wirePopup(popup);
       } else if (selected) {
         selected = null;
         map.setFilter("communes-selected", ["==", ["get", "code_insee"], ""]);
@@ -439,11 +459,18 @@ function map_init() {
       refresh();
     }
 
-    renderScopeSelect(document.getElementById("scope"), scopes, (next) => {
+    // The one way in: the picker, the popup's zone links and clicking a faded
+    // commune all land here, so the select stays in step with choices made on
+    // the map.
+    function selectScope(next) {
       rescope(next);
-      if (next.id !== scopes[0].id) map.fitBounds(bounds(inScope), { padding: 40 });
-      else map.easeTo({ center: IDF_CENTER, zoom: IDF_ZOOM });
-    });
+      scopeSelect.value = next.id;
+
+      if (next.id === scopes[0].id) map.easeTo({ center: IDF_CENTER, zoom: IDF_ZOOM });
+      else map.fitBounds(bounds(inScope), { padding: 40 });
+    }
+
+    const scopeSelect = renderScopeSelect(document.getElementById("scope"), scopes, selectScope);
 
     renderSliders(document.getElementById("sliders"), weights, refresh);
     renderLegend(document.getElementById("legend"));
@@ -451,16 +478,28 @@ function map_init() {
 
     map.on("click", "communes-fill", (event) => {
       const feature = byCode.get(event.features[0].properties.code_insee);
-      if (!feature || !scope.matches(feature.properties)) return;
-      select(feature.properties, event.lngLat);
+      if (!feature) return;
+
+      // Clicking outside the comparison set moves it rather than opening a
+      // popup full of blanks: the zone jumps to the one the click landed in,
+      // at the granularity already in use. That makes the map a way of
+      // walking from one intercommunalité to the next.
+      if (scope.matches(feature.properties)) {
+        select(feature.properties, event.lngLat);
+        return;
+      }
+
+      const zone = siblingZone(scope, feature.properties);
+      if (zone) selectScope(scopes.find((candidate) => candidate.id === zone.id));
     });
 
-    // mousemove rather than mouseenter: the cursor has to answer "is *this*
-    // commune clickable", and moving between two communes never re-fires
-    // mouseenter.
+    // mousemove rather than mouseenter: the cursor has to answer "what does
+    // clicking *this* commune do", and moving between two communes never
+    // re-fires mouseenter.
     map.on("mousemove", "communes-fill", (event) => {
       const feature = byCode.get(event.features[0].properties.code_insee);
-      map.getCanvas().style.cursor = feature && scope.matches(feature.properties) ? "pointer" : "";
+      const inside = feature && scope.matches(feature.properties);
+      map.getCanvas().style.cursor = feature && (inside || siblingZone(scope, feature.properties)) ? "pointer" : "";
     });
     map.on("mouseleave", "communes-fill", () => {
       map.getCanvas().style.cursor = "";
