@@ -17,9 +17,12 @@ const IDF_ZOOM = 8;
 
 const DATA_URL = "./data/communes_scores.geojson";
 
+// OpenFreeMap: free, no API key, no rate limits, open-source basemap tiles.
+// "positron" is a light/muted style so the rent choropleth (drawn on top,
+// at 50% opacity) reads clearly instead of competing with a busy street map.
 const map = new MapLibreMap({
   container: "map",
-  style: "https://demotiles.maplibre.org/style.json",
+  style: "https://tiles.openfreemap.org/styles/positron",
   center: IDF_CENTER,
   zoom: IDF_ZOOM,
 });
@@ -73,7 +76,7 @@ map.on("load", async () => {
         40,
         "#bd0026",
       ],
-      "fill-opacity": 0.6,
+      "fill-opacity": 0.5,
     },
   });
 
