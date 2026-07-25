@@ -1,6 +1,15 @@
-import { Map as MapLibreMap, NavigationControl, Popup } from "maplibre-gl";
+import { Map as MapLibreMap, NavigationControl, Popup, setWorkerUrl } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { initialWeights } from "./sliders.js";
+
+// Vite's production bundler (Rolldown) emits maplibre-gl's worker file
+// verbatim with a plain `?url` import, dropping its sibling chunk — the
+// worker then fails silently on first import and no tiles ever render
+// (blank map, no console error). `?worker&url` routes it through Vite's
+// worker pipeline instead, producing a self-contained chunk. Needed for
+// production builds only, but harmless in dev too.
+setWorkerUrl(maplibreWorkerUrl);
 
 // Île-de-France center, chosen to frame the whole region at this zoom.
 const IDF_CENTER = [2.5, 48.7];

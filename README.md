@@ -38,6 +38,7 @@ cd web
 npm install
 npm run dev      # local dev server at http://localhost:5173
 npm run build    # outputs to web/dist, deployed by the GitHub Action
+npm run preview  # preview in localhost the static built website
 ```
 
 `npm run dev` and `npm run build` both run a `predev`/`prebuild` hook (`web/scripts/sync-data.mjs`) that copies `data/processed/communes_scores.geojson` into `web/public/data/` so Vite can serve it. Re-run `uv run python -m etl.pipeline` any time you want the map to reflect fresher data, then restart `npm run dev` (or just re-run `npm run build`) to pick it up.
