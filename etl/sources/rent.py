@@ -10,7 +10,7 @@ alongside normalized scores" rule.
 
 from pathlib import Path
 
-import pandas as pd
+import polars as pl
 import requests
 
 from etl.common.communes_ref import IDF_DEPARTMENTS
@@ -28,31 +28,29 @@ RESOURCES = {
 RAW_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "raw"
 
 
-def _fetch_resource(column: str, rid: str) -> pd.DataFrame:
+def _fetch_resource(column: str, rid: str) -> pl.DataFrame:
     cache_path = RAW_DIR / f"rent_{column}.json"
 
     if not cache_path.exists():
-        # requests bundles its own CA store (certifi), which sidesteps
-        # unreliable OS certificate stores that pandas.read_json's urllib
-        # backend depends on for HTTPS.
         response = requests.get(TABULAR_API_URL.format(rid=rid), timeout=60)
         response.raise_for_status()
         RAW_DIR.mkdir(parents=True, exist_ok=True)
         cache_path.write_bytes(response.content)
 
-    raw = pd.read_json(cache_path)
-    idf = raw[raw["DEP"].isin(IDF_DEPARTMENTS)]
-    idf = idf.rename(columns={"INSEE_C": "code_insee", "loypredm2": column})
-    return idf.set_index("code_insee")[[column]]
+    raw = pl.read_json(cache_path)
+    return raw.filter(pl.col("DEP").is_in(IDF_DEPARTMENTS)).select(
+        pl.col("INSEE_C").alias("code_insee"),
+        pl.col("loypredm2").alias(column),
+    )
 
 
-def fetch() -> pd.DataFrame:
-    """Return a DataFrame indexed by code_insee with columns:
-    loyer_m2_appartement, loyer_m2_t1_t2, loyer_m2_t3_plus, loyer_m2_maison.
+def fetch() -> pl.DataFrame:
+    """Return a DataFrame with columns: code_insee, loyer_m2_appartement,
+    loyer_m2_t1_t2, loyer_m2_t3_plus, loyer_m2_maison.
     """
     frames = [_fetch_resource(column, rid) for column, rid in RESOURCES.items()]
 
     result = frames[0]
     for frame in frames[1:]:
-        result = result.join(frame, how="outer")
+        result = result.join(frame, on="code_insee", how="full", coalesce=True)
     return result

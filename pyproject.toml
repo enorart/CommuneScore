@@ -9,4 +9,5 @@ dependencies = [
     "shapely>=2.0",
     "requests>=2.32",
     "pyarrow>=17.0",
+    "polars>=1.43.0",
 ]
