@@ -21,9 +21,9 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      # TODO: etl/pipeline.py is currently a stub (raises NotImplementedError).
-      # Once real source implementations land, this step will produce
-      # data/processed/communes_scores.geojson.
+      # etl/pipeline.py produce data/processed/communes_scores.geojson
+      # use real source implementations, extract, clean, transform, load
+      # TODO : integrate all datas (BPE, security, air...)
       - name: Run ETL pipeline
         run: uv run python -m etl.pipeline
 

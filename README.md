@@ -1,6 +1,6 @@
-# Ville Idéale IDF
+# CommuneScore
 
-A public website that helps someone choose **which commune to search for housing in**, across Île-de-France — before using a rental-listing tool (Jinka, SeLoger, etc.). It is not a listing search engine.
+A public website that helps someone choose **which commune to search for housing in**, across Île-de-France — before using a rental-listing tool (Jinka, SeLoger, etc.). **It is not a listing search engine.**
 
 For each commune, the site shows an interactive choropleth map colored by a composite score built from: average rent, sports/leisure, culture, education, health, amenities, security, and environment (green space + air quality). Weights per criterion are adjustable live via sliders — all composite scoring happens client-side in the browser.
 
@@ -30,8 +30,6 @@ uv run python -m etl.pipeline
 Outputs `data/processed/communes_scores.geojson` (commune boundaries + population + rent, keyed by `code_insee`). Raw source files are cached under `data/raw/` on first fetch — delete a specific cache file to force a re-fetch of just that source.
 
 Currently wired in: `communes_ref` (reference geometry/population, Paris split into its 20 arrondissements) and `rent`. The other source modules in `etl/sources/` (`bpe.py`, `ssmsi.py`, `corine.py`, `airparif.py`, `ips_schools.py`) are still stubs — see `PROJECT_PLAN.md` section 7 for build order.
-
-If a network fetch fails with `SSLCertVerificationError`, add `--native-tls` (or `--system-certs`) to the `uv` command — some networks intercept TLS with a root CA that's in the OS trust store but not in Python's default `certifi` bundle.
 
 ## Frontend
 
