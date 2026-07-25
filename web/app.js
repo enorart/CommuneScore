@@ -113,23 +113,64 @@ function spineHtml(props) {
 // score (t1_t2 and t3_plus are subsets of appartement — see RENT_COLUMNS in
 // etl/pipeline.py), but all four are worth seeing: which one matters depends
 // entirely on what you are looking for.
-const RENT_DETAIL = [
+const RENT_TYPOLOGIES = [
   { key: "loyer_m2_appartement", label: "Appartement", scored: true },
-  { key: "loyer_m2_t1_t2", label: "T1–T2", scored: false },
-  { key: "loyer_m2_t3_plus", label: "T3 et plus", scored: false },
+  { key: "loyer_m2_t1_t2", label: "T1–T2" },
+  { key: "loyer_m2_t3_plus", label: "T3 et plus" },
   { key: "loyer_m2_maison", label: "Maison", scored: true },
 ];
 
-function rentDetailRows(props) {
-  return RENT_DETAIL.map(
-    ({ key, label, scored }) => `
-      <tr class="rent-detail${scored ? " is-scored" : ""}" hidden>
-        <th>${label}</th>
-        <td class="num" colspan="3">${
-          props[key] == null ? "—" : `${rawFormat.format(props[key])} €/m²`
-        }</td>
-      </tr>`
-  ).join("");
+// Criteria whose single number hides something worth naming. `scored` marks
+// the part the score is actually built from; `wrap` is for values too long
+// to sit in a right-aligned column.
+const DETAILS = {
+  loyer: (props) =>
+    RENT_TYPOLOGIES.map(({ key, label, scored }) => ({
+      label,
+      scored,
+      value: props[key] == null ? "—" : `${rawFormat.format(props[key])} €/m²`,
+    })),
+
+  transport: (props) => [
+    { label: "Gares dans la commune", value: shorten(props.gares), wrap: true },
+    {
+      label: `Lignes à ${NEARBY_RADIUS_KM} km`,
+      value: props[`lignes_${NEARBY_RADIUS_KM}km`] || "aucune",
+      wrap: true,
+      scored: true,
+    },
+  ],
+};
+
+// Most communes have nought to three stations, but a Paris arrondissement
+// has twenty-odd — enough to bury the rest of the popup. The line list below
+// is left whole: that one is the answer to "where can I get to from here".
+const MAX_LISTED = 6;
+
+function shorten(list) {
+  if (!list) return "aucune";
+
+  const items = list.split(", ");
+  if (items.length <= MAX_LISTED) return list;
+  return `${items.slice(0, MAX_LISTED).join(", ")} + ${items.length - MAX_LISTED} autres`;
+}
+
+function detailRows(key, props) {
+  const build = DETAILS[key];
+  if (!build) return "";
+
+  return build(props)
+    .map(({ label, value, scored, wrap }) => {
+      const classes = `row-detail${scored ? " is-scored" : ""}`;
+      return wrap
+        ? `<tr class="${classes}" data-group="${key}" hidden>
+             <td colspan="4"><span class="detail-label">${label}</span><span class="detail-value">${value}</span></td>
+           </tr>`
+        : `<tr class="${classes}" data-group="${key}" hidden>
+             <th>${label}</th><td class="num" colspan="3">${value}</td>
+           </tr>`;
+    })
+    .join("");
 }
 
 function popupHtml(props) {
@@ -138,12 +179,11 @@ function popupHtml(props) {
   const rows = CRITERIA.map((criterion) => {
     const score = props[criterion.property];
     const muted = weights[criterion.key] === 0 ? " is-muted" : "";
-    const isRent = criterion.key === "loyer";
 
-    // The rent row expands into the four ANIL typologies; every other row is
-    // a single number and has nothing to expand.
-    const label = isRent
-      ? `<button type="button" class="rent-toggle" aria-expanded="false">${criterion.label}</button>`
+    // Rows with a DETAILS entry get a toggle; the rest are a single number
+    // and have nothing to expand.
+    const label = DETAILS[criterion.key]
+      ? `<button type="button" class="detail-toggle" data-group="${criterion.key}" aria-expanded="false">${criterion.label}</button>`
       : criterion.label;
 
     return `
@@ -155,7 +195,7 @@ function popupHtml(props) {
         </td>
         <td class="num score">${score == null ? "—" : scoreFormat.format(score)}</td>
       </tr>
-      ${isRent ? rentDetailRows(props) : ""}`;
+      ${detailRows(criterion.key, props)}`;
   }).join("");
 
   return `
@@ -253,22 +293,40 @@ function map_init() {
       selected = props.code_insee;
       map.setFilter("communes-selected", ["==", ["get", "code_insee"], selected]);
       popup.setLngLat(lngLat).setHTML(popupHtml(props)).addTo(map);
-      wireRentToggle(popup.getElement());
+      wireDetailToggles(popup);
       renderRanking();
     }
 
-    // setHTML replaces the popup's contents wholesale, so the listener has to
+    // setHTML replaces the popup's contents wholesale, so listeners have to
     // be reattached every time rather than bound once.
-    function wireRentToggle(element) {
-      const toggle = element.querySelector(".rent-toggle");
-      if (!toggle) return;
+    function wireDetailToggles(instance) {
+      const element = instance.getElement();
 
-      const details = [...element.querySelectorAll(".rent-detail")];
-      toggle.addEventListener("click", () => {
-        const open = toggle.getAttribute("aria-expanded") === "true";
-        toggle.setAttribute("aria-expanded", String(!open));
-        for (const row of details) row.hidden = open;
-      });
+      const toggles = [...element.querySelectorAll(".detail-toggle")];
+
+      for (const toggle of toggles) {
+        toggle.addEventListener("click", () => {
+          const open = toggle.getAttribute("aria-expanded") === "true";
+
+          // One section at a time: with eight criteria already listed, two
+          // open sections make the popup taller than the map has room for
+          // on either side of the point.
+          for (const other of toggles) {
+            const show = other === toggle && !open;
+            other.setAttribute("aria-expanded", String(show));
+            for (const row of element.querySelectorAll(`.row-detail[data-group="${other.dataset.group}"]`)) {
+              row.hidden = !show;
+            }
+          }
+
+          // MapLibre chooses which side of the point to hang the popup from
+          // when it opens, using the height at that moment. Expanding a
+          // section changes that height, and nothing re-picks on its own —
+          // so a grown popup runs off the top of the map. Re-setting the
+          // location forces the anchor to be recomputed.
+          instance.setLngLat(instance.getLngLat());
+        });
+      }
     }
 
     function renderRanking() {

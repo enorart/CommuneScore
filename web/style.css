@@ -338,9 +338,12 @@ input[type="range"]:focus-visible {
 
 .maplibregl-popup-content {
   padding: 0;
-  /* Expanding the rent typologies makes this tall enough to overrun a short
-     viewport, and MapLibre only flips the anchor, it does not shrink. */
-  max-height: 72vh;
+  /* MapLibre picks a side to hang the popup from but never shrinks it, so
+     anything taller than the space beside the click point runs off the map.
+     Clicking dead centre leaves just under half the map height on either
+     side — hence 47vh, which fits from anywhere. Taller content scrolls
+     under the pinned header below. */
+  max-height: 47vh;
   overflow-y: auto;
   border-radius: 3px;
   border: 1px solid var(--rule);
@@ -352,8 +355,14 @@ input[type="range"]:focus-visible {
   padding: 0.9rem 1rem 0.8rem;
 }
 
+/* Stays put while the body scrolls, so it is always clear which commune the
+   numbers belong to. */
 .commune-popup header {
-  padding-right: 1.2rem;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0 1.2rem 0.4rem 0;
+  background: white;
 }
 
 .commune-popup h3 {
@@ -408,7 +417,7 @@ input[type="range"]:focus-visible {
 
 /* Rent expands into ANIL's four typologies. The chevron is the only
    affordance the row needs — the numbers do the rest. */
-.rent-toggle {
+.detail-toggle {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -421,7 +430,7 @@ input[type="range"]:focus-visible {
   text-align: left;
 }
 
-.rent-toggle::after {
+.detail-toggle::after {
   content: "";
   width: 0;
   height: 0;
@@ -431,42 +440,61 @@ input[type="range"]:focus-visible {
   transition: transform 0.15s ease;
 }
 
-.rent-toggle[aria-expanded="true"] {
+.detail-toggle[aria-expanded="true"] {
   color: var(--ink);
 }
 
-.rent-toggle[aria-expanded="true"]::after {
+.detail-toggle[aria-expanded="true"]::after {
   transform: rotate(180deg);
 }
 
-.rent-toggle:hover {
+.detail-toggle:hover {
   color: var(--ink);
 }
 
-.rent-toggle:focus-visible {
+.detail-toggle:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
   border-radius: 2px;
 }
 
-.rent-detail th {
+.row-detail th,
+.row-detail td {
   padding-left: 0.85rem;
   font-size: 0.72rem;
   color: var(--ink-faint);
 }
 
-.rent-detail td {
+.row-detail td.num {
+  padding-left: 0;
+}
+
+/* Line lists are long enough to need their own line rather than a column. */
+.detail-label {
+  display: block;
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--ink-faint);
+}
+
+.detail-value {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  padding-bottom: 0.25rem;
 }
 
 /* The two typologies that actually feed the score, so the expander explains
    where the average above it came from. */
-.rent-detail.is-scored th,
-.rent-detail.is-scored td {
+.row-detail.is-scored th,
+.row-detail.is-scored td {
   color: var(--ink-soft);
 }
 
-.rent-detail.is-scored th::before {
+.row-detail.is-scored th::before {
   content: "· ";
   color: var(--ink);
 }

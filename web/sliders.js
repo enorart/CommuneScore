@@ -73,12 +73,12 @@ export const CRITERIA = [
   },
   {
     key: "transport",
-    label: "Gares",
+    label: "Transports",
     property: "score_transport",
-    raw: `nb_transport_${NEARBY_RADIUS_KM}km`,
-    unit: `à ${NEARBY_RADIUS_KM} km`,
+    raw: `nb_lignes_${NEARBY_RADIUS_KM}km`,
+    unit: `lignes à ${NEARBY_RADIUS_KM} km`,
     defaultWeight: 1,
-    note: "Gares SNCF et RER seulement, ni métro ni bus",
+    note: "Réseau ferré : RER, Transilien, métro, tramway",
   },
 ];
 

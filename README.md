@@ -29,9 +29,11 @@ uv run python -m etl.pipeline
 
 Outputs `data/processed/communes_scores.geojson` (commune boundaries + population + rent + equipment counts + per-criterion 0–100 scores, keyed by `code_insee`). Raw source files are cached under `data/raw/` on first fetch — delete a specific cache file to force a re-fetch of just that source.
 
-Currently wired in: `communes_ref` (reference geometry/population, Paris split into its 20 arrondissements), `rent`, and `bpe`. The remaining source modules in `etl/sources/` (`ssmsi.py`, `corine.py`, `airparif.py`, `ips_schools.py`) are still stubs — see `PROJECT_PLAN.md` section 7 for build order.
+Currently wired in: `communes_ref` (reference geometry/population, Paris split into its 20 arrondissements), `rent`, `bpe`, and `idfm_gares`. The remaining source modules in `etl/sources/` (`ssmsi.py`, `corine.py`, `airparif.py`, `ips_schools.py`) are still stubs — see `PROJECT_PLAN.md` section 7 for build order.
 
 `bpe` writes seven curated criterion counts (`nb_sports`, `nb_culture`, `nb_enseignement`, `nb_sante`, `nb_commerces`, `nb_transport`, `nb_petite_enfance`) plus the 27 raw BPE sous-domaine counts (`bpe_a1` … `bpe_g1`), so criteria can be re-cut later without re-downloading. The criterion definitions and the reasoning behind them (why the 7 BPE domaines are too coarse to use directly) live at the top of `etl/sources/bpe.py`.
+
+Transport does **not** come from BPE. Its transport domain is 99% taxi-VTC company registrations (54,895 rows out of 55,328 in IDF) and the stations it does carry are SNCF/RER only — no métro, no tram. `etl/sources/idfm_gares.py` replaces it with Île-de-France Mobilités' rail network: 996 stations across 50 lines, every mode, named the way a rider names them (`RER A`, `TRAIN H`, `METRO 4`, `TRAM 3a`).
 
 ### Scoring
 
@@ -39,6 +41,8 @@ Each criterion ends up as a `score_*` column on a 0–100 scale. Equipment crite
 
 1. **Neighbourhood count** (`etl/common/neighbourhood.py`). Equipment is re-counted over each commune plus everything within 3 km, giving `nb_<criterion>_3km` (and `population_3km` for context). The radius lives in `neighbourhood.DEFAULT_RADIUS_KM` and is baked into the column names via `NEARBY_SUFFIX` in `pipeline.py`; `web/sliders.js` mirrors it as `NEARBY_RADIUS_KM`. Administrative borders are invisible to a resident — a bakery 500 m away in the next commune counts.
 2. **Log min-max** (`normalize.log_min_max_scale`). `log1p` of that count, min-max scaled to 0–100. The log is the point: going from 1 reachable bakery to 10 changes daily life, going from 300 to 3 000 does not.
+
+Transport is scored the same way but on **distinct lines** reachable, not stations — three stops on the same RER get you to the same places, three different lines do not. It also measures reach differently: the IDFM data has real coordinates, so `neighbourhood.points_within` measures to the stations themselves. `aggregate` can only work at commune granularity, which credited Versailles with an RER A station 6.8 km away because Rueil-Malmaison happens to come within 2.3 km of its boundary. BPE has no coordinates, so it has no choice but to live with that.
 
 Rent skips both steps. `score_loyer` is the inverted percentile rank of `loyer_m2_moyen` (the mean of `loyer_m2_appartement` and `loyer_m2_maison`, in €/m²), so cheaper scores higher. ANIL's `t1_t2` and `t3_plus` are carried through for tooltip detail but not scored — they're subsets of `loyer_m2_appartement` (correlation .96), so including them would weight apartments 3× against houses.
 
@@ -61,7 +65,7 @@ npm run preview  # preview in localhost the static built website
 
 `npm run dev` and `npm run build` both run a `predev`/`prebuild` hook (`web/scripts/sync-data.mjs`) that copies `data/processed/communes_scores.geojson` into `web/public/data/` so Vite can serve it. Re-run `uv run python -m etl.pipeline` any time you want the map to reflect fresher data, then restart `npm run dev` (or just re-run `npm run build`) to pick it up.
 
-The map renders every IDF commune (+ Paris arrondissements) as a choropleth colored by the composite score. One slider per criterion (0 to `MAX_WEIGHT` in `sliders.js`, where 0 drops the criterion out of the average rather than scoring it zero) recolors the map and rebuilds the ranking live; clicking a commune or a ranking row opens a popup breaking the score down against its raw values. The rent row expands to show all four ANIL typologies (appartement, T1–T2, T3 et plus, maison), with the two that feed the score marked.
+The map renders every IDF commune (+ Paris arrondissements) as a choropleth colored by the composite score. One slider per criterion (0 to `MAX_WEIGHT` in `sliders.js`, where 0 drops the criterion out of the average rather than scoring it zero) recolors the map and rebuilds the ranking live; clicking a commune or a ranking row opens a popup breaking the score down against its raw values. The rent and transport rows expand — rent into all four ANIL typologies (with the two that feed the score marked), transport into the commune's stations and every line reachable within 3 km. They behave as an accordion: eight criteria plus two open sections is taller than MapLibre has room for on either side of the click point.
 
 Two implementation notes: the source uses `promoteId: "code_insee"` so the composite lives in MapLibre feature state and the formula stays in one place in `app.js`, and updates are coalesced to one pass per animation frame — dragging a slider would otherwise queue 1285 feature-state writes per input event. Everything on the page reads from a single colour scale (`RAMP` in `app.js`), so the map, the per-commune "spine" bars in the ranking and the popup bars all mean the same thing and share one legend.
 
@@ -76,6 +80,7 @@ Wired in so far:
 | Commune boundaries + population | IGN — ADMIN EXPRESS COG, via the Géoplateforme WFS (`data.geopf.fr`) | Licence Ouverte / Etalab 2.0 |
 | Rent (€/m²) | ANIL — Carte des loyers 2025, via data.gouv.fr | Licence Ouverte / Etalab 2.0 |
 | Equipment counts | INSEE — Base permanente des équipements 2025 | Licence Ouverte / Etalab 2.0 |
+| Rail stations and lines | Île-de-France Mobilités — Gares et stations du réseau ferré d'Île-de-France (par ligne) | Licence Ouverte v2.0 (Etalab) |
 
 Attribution for these is surfaced in the site footer (`#attribution` in `web/index.html`); add a row here and a link there as each remaining source lands.
 

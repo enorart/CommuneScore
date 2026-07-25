@@ -1,8 +1,7 @@
 """INSEE BPE (Base permanente des equipements) 2025, commune-level counts.
 
 INSEE publishes one national CSV where each row is a (territory x equipment
-type) count, so everything we need is already aggregated per commune -- no
-spatial join, unlike what PROJECT_PLAN.md anticipated.
+type) count, so everything we need is already aggregated per commune.
 
 Three things about the file shape drive the filtering below:
   - GEO_OBJECT mixes 11 territory levels in the same file (COM, ARM, DEP,
@@ -15,13 +14,10 @@ Three things about the file shape drive the filtering below:
     level. Keeping only leaf FACILITY_TYPE rows avoids counting them twice.
 
 Known limitations, worth remembering before scoring on these numbers:
-  - transport coverage is poor for IDF: BPE only knows SNCF/RER gares de
-    voyageurs, not metro, tram or bus (433 equipments over 1285 communes).
-    Kept for tooltips; real transport access is Phase 2, via IDFM.
-  - counts stop at the commune border, so an equipment 400 m away in the
-    next commune counts as zero.
-  - equipments are counted, not their capacity: a 20-lane pool and a small
-    municipal one both count as one.
+  - transport coverage: BPE only knows SNCF/RER gares de
+    voyageurs, not metro, tram or bus.
+  - counts stop at the commune border.
+  - equipments are counted, not their capacity (size).
 """
 
 import zipfile
@@ -41,10 +37,8 @@ CACHE_PATH = RAW_DIR / "bpe_2025.zip"
 # The 7 BPE domaines are too coarse to score on directly, so criteria are
 # curated from the 28 sous-domaines instead. Excluded on purpose: A (86% of
 # it is artisans du batiment and coiffeurs/restaurants), G (tourisme), F2
-# (sports de nature -- 226 equipments in all of IDF), C4-C7 (universites and
-# formation continue), D4/D6/D7 (action sociale, not medical access).
-# The raw sous-domaine counts are all kept anyway, so criteria can be re-cut
-# later without re-downloading.
+# (sports de nature), C4-C7 (universites and formation continue),
+# D4/D6/D7 (action sociale, not medical access).
 
 # criterion column -> BPE sous-domaines aggregated whole
 SDOM_CRITERIA = {
@@ -57,16 +51,15 @@ SDOM_CRITERIA = {
 
 # criterion column -> individual BPE types, where the sous-domaine is too coarse
 TYPE_CRITERIA = {
-    # E1 is 99% taxi-VTC (54 895 out of 55 328 in IDF): only the gares and
-    # airports say anything about transport access.
-    "nb_transport": ["E102", "E107", "E108", "E109"],
     # creches / micro-creches / RPE / LAEP, pulled out of D5 which also holds
     # accueils de loisirs and centres sociaux.
     "nb_petite_enfance": ["D502", "D503", "D504", "D509"],
 }
 
-# Single owner of the criterion naming, so pipeline.py can derive the
-# per-1000-inhabitants rate columns from it.
+# Transport deliberately does not come from BPE. Its E1 sous-domaine is 99%
+# taxi-VTC registrations (54 895 rows out of 55 328 in IDF), and the gares it
+# does carry are SNCF/RER only, no metro, no tram.
+
 CRITERION_COLUMNS = list(SDOM_CRITERIA) + list(TYPE_CRITERIA)
 
 
