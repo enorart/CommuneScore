@@ -9,12 +9,16 @@ the raw numbers are worth more to someone choosing where to live than the
 abstract score built from them.
 """
 
+import logging
+
 import geopandas as gpd
 import pandas as pd
 import polars as pl
 
-from etl.common import insee
+from etl.common import insee, logs
 from etl.common.cache import cached_download
+
+logger = logging.getLogger(__name__)
 
 TABULAR_API_URL = "https://tabular-api.data.gouv.fr/api/resources/{rid}/data/json/"
 
@@ -51,11 +55,20 @@ def fetch() -> pl.DataFrame:
     result = frames[0]
     for frame in frames[1:]:
         result = result.join(frame, on="code_insee", how="full", coalesce=True)
-    return result.sort("code_insee")
+
+    result = result.sort("code_insee")
+    logger.info("fetched %s over %d ANIL typologies", logs.shape(result), len(RESOURCES))
+    return result
 
 
 def build(ref: gpd.GeoDataFrame) -> pd.DataFrame:
     """The four typologies, plus loyer_m2_moyen, the figure the score reads."""
     rents = insee.by_commune(fetch()).reindex(ref.index)
     rents["loyer_m2_moyen"] = rents[SCORED_COLUMNS].mean(axis=1).round(2)
+
+    logger.info(
+        "built %s, %d communes with no ANIL price",
+        logs.shape(rents),
+        int(rents["loyer_m2_moyen"].isna().sum()),
+    )
     return rents

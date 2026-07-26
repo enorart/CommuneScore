@@ -20,14 +20,17 @@ Known limitations, worth remembering before scoring on these numbers:
   - equipments are counted, not their capacity (size).
 """
 
+import logging
 import zipfile
 
 import geopandas as gpd
 import pandas as pd
 import polars as pl
 
-from etl.common import insee, neighbourhood
+from etl.common import insee, logs, neighbourhood
 from etl.common.cache import cached_download
+
+logger = logging.getLogger(__name__)
 
 BPE_URL = "https://www.insee.fr/fr/statistiques/fichier/8217527/DS_BPE_CSV_FR.zip"
 DATA_MEMBER = "DS_BPE_2025_data.csv"
@@ -81,12 +84,20 @@ def _read_idf_leaf_rows() -> pl.DataFrame:
     is_commune = (pl.col("GEO_OBJECT") == "COM") & insee.idf_communes("GEO")
     is_paris_arrondissement = (pl.col("GEO_OBJECT") == "ARM") & pl.col("GEO").str.starts_with("751")
 
-    return (
+    rows = (
         raw.filter(pl.col("FACILITY_TYPE") != "_T")
         .filter(is_commune | is_paris_arrondissement)
         .rename({"GEO": "code_insee"})
         .select("code_insee", "FACILITY_SDOM", "FACILITY_TYPE", "OBS_VALUE")
     )
+
+    logger.info(
+        "national file %d rows, %d left after keeping leaf counts for %d IDF communes",
+        len(raw),
+        len(rows),
+        rows["code_insee"].n_unique(),
+    )
+    return rows
 
 
 def _sous_domaine_counts(rows: pl.DataFrame) -> pl.DataFrame:
@@ -127,7 +138,9 @@ def fetch() -> pl.DataFrame:
     # committed geojson doesn't churn between runs.
     ordered = ["code_insee", *CRITERION_COLUMNS, *sorted(c for c in counts if c.startswith("bpe_"))]
 
-    return result.with_columns(pl.col(counts).fill_null(0).cast(pl.Int32)).select(ordered).sort("code_insee")
+    result = result.with_columns(pl.col(counts).fill_null(0).cast(pl.Int32)).select(ordered).sort("code_insee")
+    logger.info("fetched %s over %d curated criteria", logs.shape(result), len(CRITERION_COLUMNS))
+    return result
 
 
 def build(ref: gpd.GeoDataFrame) -> pd.DataFrame:
@@ -142,4 +155,6 @@ def build(ref: gpd.GeoDataFrame) -> pd.DataFrame:
     counts = insee.by_commune(fetch()).reindex(ref.index)
     nearby = neighbourhood.aggregate(ref, counts[CRITERION_COLUMNS])
 
-    return counts.join(nearby.astype("int64"))
+    equipment = counts.join(nearby.astype("int64"))
+    logger.info("built %s", logs.shape(equipment))
+    return equipment

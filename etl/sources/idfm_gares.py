@@ -14,11 +14,15 @@ no INSEE code. Keeping the geometry lets the pipeline measure distance to
 the stations themselves.
 """
 
+import logging
+
 import geopandas as gpd
 import pandas as pd
 
-from etl.common import neighbourhood
+from etl.common import logs, neighbourhood
 from etl.common.cache import cached_download
+
+logger = logging.getLogger(__name__)
 
 EXPORT_URL = (
     "https://data.iledefrance-mobilites.fr/api/explore/v2.1/catalog/datasets/"
@@ -61,13 +65,21 @@ def fetch() -> gpd.GeoDataFrame:
     the communes near the border.
     """
     gares = gpd.read_file(cached_download(EXPORT_URL, CACHE_NAME, timeout=120))
-    return gares[["id_ref_zdc", "nom_zdc", "res_com", "mode", "geometry"]].rename(
+    stations = gares[["id_ref_zdc", "nom_zdc", "res_com", "mode", "geometry"]].rename(
         columns={
             "id_ref_zdc": "station_id",
             "nom_zdc": "gare",
             "res_com": "ligne",
         }
     )
+
+    logger.info(
+        "fetched %s: %d stations across %d lines",
+        logs.shape(stations),
+        stations["station_id"].nunique(),
+        stations["ligne"].nunique(),
+    )
+    return stations
 
 
 def build(ref: gpd.GeoDataFrame) -> pd.DataFrame:
@@ -108,4 +120,12 @@ def build(ref: gpd.GeoDataFrame) -> pd.DataFrame:
     # A commune with no station has none, not an unknown number of them.
     counts = [c for c in rail.columns if c.startswith("nb_")]
     rail[counts] = rail[counts].fillna(0).astype("int64")
-    return rail.fillna("")
+    rail = rail.fillna("")
+
+    logger.info(
+        "built %s, %d communes with a station of their own, %d with none within reach",
+        logs.shape(rail),
+        int((rail["nb_gares"] > 0).sum()),
+        int((rail[neighbourhood.column("nb_lignes")] == 0).sum()),
+    )
+    return rail

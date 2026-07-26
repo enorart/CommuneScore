@@ -11,8 +11,12 @@ neighbours. Population is summed the same way, since anything expressed per
 inhabitant has to use the population of the same footprint.
 """
 
+import logging
+
 import geopandas as gpd
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 # Metric CRS for France. Buffering has to happen in metres, and the
 # reference geometry is WGS84 degrees.
@@ -48,6 +52,14 @@ def points_within(
     """
     communes = _buffered(ref, radius_km).rename_axis("code_insee").reset_index()
     hits = points.to_crs(LAMBERT_93).sjoin(communes, how="inner", predicate="within")
+
+    logger.info(
+        "%d points within %g km of a commune, from %d points over %d communes",
+        len(hits),
+        radius_km,
+        len(points),
+        len(ref),
+    )
     return pd.DataFrame(hits.drop(columns="geometry"))
 
 
@@ -86,6 +98,13 @@ def aggregate(
     summed count and the summed population afterwards.
     """
     neighbours = _pairs(ref, radius_km)
+
+    logger.info(
+        "summing %d columns over %g km neighbourhoods: %.1f communes within reach on average",
+        len(values.columns),
+        radius_km,
+        len(neighbours) / len(ref),
+    )
 
     summable = values.join(ref[["population"]])
 

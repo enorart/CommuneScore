@@ -36,12 +36,16 @@ Known limitations, worth remembering before scoring on these numbers:
   - recorded offences, not offences committed.
 """
 
+import logging
+
 import geopandas as gpd
 import pandas as pd
 import polars as pl
 
-from etl.common import insee
+from etl.common import insee, logs
 from etl.common.cache import cached_download
+
+logger = logging.getLogger(__name__)
 
 # The RID resolves to the communal base in parquet. data.gouv.fr redirects to
 # whichever version of that resource is current, so the URL never goes stale.
@@ -109,6 +113,16 @@ def _read_idf_rows() -> pl.DataFrame:
     if missing:
         raise ValueError(f"SSMSI indicators missing from the source file: {sorted(missing)}")
 
+    withheld = int(rows["estime"].sum())
+    logger.info(
+        "%d rows for %d over %d IDF communes x %d curated indicators, %d (%.0f%%) under statistical secrecy",
+        len(rows),
+        YEAR,
+        rows["code_insee"].n_unique(),
+        len(CURATED_INDICATORS),
+        withheld,
+        100 * withheld / len(rows),
+    )
     return rows
 
 
@@ -137,7 +151,9 @@ def fetch() -> pl.DataFrame:
         + [pl.col("estime").sum().alias("nb_indicateurs_estimes")]
     )
 
-    return counts.with_columns(pl.col(c).cast(pl.Int32) for c in counts.columns[1:]).sort("code_insee")
+    counts = counts.with_columns(pl.col(c).cast(pl.Int32) for c in counts.columns[1:]).sort("code_insee")
+    logger.info("fetched %s", logs.shape(counts))
+    return counts
 
 
 def build(ref: gpd.GeoDataFrame) -> pd.DataFrame:
@@ -159,7 +175,14 @@ def build(ref: gpd.GeoDataFrame) -> pd.DataFrame:
     # min_count: a family missing entirely means unknown, not nought.
     rates["taux_delinquance"] = per_1000.sum(axis=1, min_count=len(CRIME_COLUMNS)).round(2)
 
-    return rates.join(counts["nb_indicateurs_estimes"])
+    security = rates.join(counts["nb_indicateurs_estimes"])
+    logger.info(
+        "built %s, taux_delinquance median %.1f per 1 000, %.1f indicators estimated on average",
+        logs.shape(security),
+        security["taux_delinquance"].median(),
+        security["nb_indicateurs_estimes"].mean(),
+    )
+    return security
 
 
 def metadata() -> dict:

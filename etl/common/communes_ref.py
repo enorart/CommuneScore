@@ -14,6 +14,7 @@ granularity for a 2M-person city. Lyon/Marseille have the same commune vs.
 arrondissement split but are out of scope for v1 (IDF only).
 """
 
+import logging
 import urllib.parse
 from pathlib import Path
 
@@ -21,6 +22,8 @@ import geopandas as gpd
 import pandas as pd
 
 from etl.common.insee import IDF_DEPARTMENTS, PARIS_CODE
+
+logger = logging.getLogger(__name__)
 
 WFS_BASE_URL = "https://data.geopf.fr/wfs/ows"
 
@@ -59,33 +62,42 @@ def _wfs_url(typenames: str, cql_filter: str) -> str:
     return f"{WFS_BASE_URL}?{urllib.parse.urlencode(params)}"
 
 
-def _fetch_communes() -> gpd.GeoDataFrame:
-    if COMMUNES_CACHE_PATH.exists():
-        return gpd.read_file(COMMUNES_CACHE_PATH)
+def _quoted(codes: list[str]) -> str:
+    """A CQL_FILTER IN () list: 'A','B','C'."""
+    return ",".join(f"'{code}'" for code in codes)
 
-    departments = ",".join(f"'{code}'" for code in IDF_DEPARTMENTS)
-    url = _wfs_url(
-        "ADMINEXPRESS-COG.LATEST:commune",
-        f"code_insee_du_departement IN ({departments})",
-    )
-    gdf = gpd.read_file(url)
+
+def _cached_wfs(cache_path: Path, typenames: str, cql_filter: str) -> gpd.GeoDataFrame:
+    """Read a WFS layer, downloading it into data/raw/ the first time.
+
+    Not common.cache.cached_download: geopandas reads the URL itself rather
+    than handing us bytes, so the caching has to happen around gpd.read_file.
+    """
+    if cache_path.exists():
+        logger.info("cache hit  %s", cache_path.name)
+        return gpd.read_file(cache_path)
+
+    logger.info("cache miss %s, querying WFS layer %s", cache_path.name, typenames)
+    gdf = gpd.read_file(_wfs_url(typenames, cql_filter))
     RAW_DIR.mkdir(parents=True, exist_ok=True)
-    gdf.to_file(COMMUNES_CACHE_PATH, driver="GeoJSON")
+    gdf.to_file(cache_path, driver="GeoJSON")
     return gdf
+
+
+def _fetch_communes() -> gpd.GeoDataFrame:
+    return _cached_wfs(
+        COMMUNES_CACHE_PATH,
+        "ADMINEXPRESS-COG.LATEST:commune",
+        f"code_insee_du_departement IN ({_quoted(IDF_DEPARTMENTS)})",
+    )
 
 
 def _fetch_paris_arrondissements() -> gpd.GeoDataFrame:
-    if PARIS_ARR_CACHE_PATH.exists():
-        return gpd.read_file(PARIS_ARR_CACHE_PATH)
-
-    url = _wfs_url(
+    return _cached_wfs(
+        PARIS_ARR_CACHE_PATH,
         "ADMINEXPRESS-COG.LATEST:arrondissement_municipal",
         f"code_insee_de_la_commune_de_rattach = '{PARIS_CODE}'",
     )
-    gdf = gpd.read_file(url)
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
-    gdf.to_file(PARIS_ARR_CACHE_PATH, driver="GeoJSON")
-    return gdf
 
 
 def _fetch_epci(sirens: list[str]) -> pd.DataFrame:
@@ -94,13 +106,11 @@ def _fetch_epci(sirens: list[str]) -> pd.DataFrame:
     The layer ships geometry we have no use for -- commune polygons already
     tile the region -- so only the attributes are kept.
     """
-    if not EPCI_CACHE_PATH.exists():
-        codes = ",".join(f"'{siren}'" for siren in sirens)
-        gdf = gpd.read_file(_wfs_url("ADMINEXPRESS-COG.LATEST:epci", f"code_siren IN ({codes})"))
-        RAW_DIR.mkdir(parents=True, exist_ok=True)
-        gdf.to_file(EPCI_CACHE_PATH, driver="GeoJSON")
-
-    epci = gpd.read_file(EPCI_CACHE_PATH)
+    epci = _cached_wfs(
+        EPCI_CACHE_PATH,
+        "ADMINEXPRESS-COG.LATEST:epci",
+        f"code_siren IN ({_quoted(sirens)})",
+    )
     return pd.DataFrame(epci[["code_siren", "nom_officiel", "nature"]])
 
 
@@ -149,5 +159,13 @@ def build() -> gpd.GeoDataFrame:
 
     combined["geometry"] = combined.geometry.simplify(
         SIMPLIFY_TOLERANCE_DEG, preserve_topology=True
+    )
+
+    logger.info(
+        "reference table: %d communes (%d Paris arrondissements), %d départements, %d intercommunalités",
+        len(combined),
+        len(paris_arr),
+        combined["code_departement"].nunique(),
+        combined["code_epci"].nunique(),
     )
     return combined[["name", "population", "code_departement", "code_epci", "nom_epci", "geometry"]]

@@ -135,6 +135,7 @@ etl/
     insee.py              # INSEE codes, the Île-de-France filter, polars -> pandas by commune
     communes_ref.py       # reference table every source joins onto (geometry, population, EPCI)
     neighbourhood.py      # re-count a metric over a commune + everything within N km
+    logs.py               # setup python logger for etl 
   sources/                # one module per data source, all the same shape (see its __init__.py)
     rent.py  bpe.py  idfm_gares.py  ssmsi.py
     corine.py  airparif.py  ips_schools.py     # stubs, not yet implemented
@@ -190,6 +191,14 @@ The contract, documented in `etl/sources/__init__.py`:
 | `fetch()` | The source's own data, in the source's own shape, downloaded once through `common.cache` and parsed. Nothing project specific. |
 | `build(ref)` | The columns this source contributes, indexed by `code_insee`. `ref` is the reference table, for sources needing its geometry (neighbourhood reach) or its population (rates). All source specific curation and derivation lives here. |
 | `metadata()` | Optional. Choices the frontend has to state back to the user, merged into the GeoJSON's `metadata` member. |
+
+
+Every module logs through `logging.getLogger(__name__)`; only the entry point configures handlers, in `etl/common/logs.py`. Set the level without touching code:
+
+```bash
+LOG_LEVEL=WARNING uv run python -m etl.pipeline   # silent unless something is wrong
+LOG_LEVEL=DEBUG   uv run python -m etl.pipeline
+```
 
 Every download goes through `cached_download(url, filename)` in `etl/common/cache.py`, which fetches into `data/raw/` once and never again. **Delete one file in `data/raw/` to force a re-fetch of just that source.**
 

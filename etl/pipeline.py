@@ -12,12 +12,18 @@ communes, and the user picks that set in the browser (see web/scoring.js).
 """
 
 import json
+import logging
+import time
 from pathlib import Path
 
 import geopandas as gpd
 
-from etl.common import communes_ref, neighbourhood
+from etl.common import communes_ref, logs, neighbourhood
 from etl.sources import bpe, idfm_gares, rent, ssmsi
+
+# Named rather than __name__: this module is the entry point, so run as
+# `python -m etl.pipeline` its __name__ is "__main__".
+logger = logging.getLogger("etl.pipeline")
 
 OUTPUT_PATH = Path(__file__).resolve().parent.parent / "data" / "processed" / "communes_scores.geojson"
 
@@ -52,19 +58,47 @@ def _write_output(communes: gpd.GeoDataFrame) -> None:
     OUTPUT_PATH.unlink(missing_ok=True)
     communes.reset_index().to_file(OUTPUT_PATH, driver="GeoJSON")
 
-    header = f'\n"metadata": {json.dumps(_metadata(), ensure_ascii=False)},\n"features": ['
+    metadata = _metadata()
+    header = f'\n"metadata": {json.dumps(metadata, ensure_ascii=False)},\n"features": ['
     written = OUTPUT_PATH.read_text(encoding="utf-8")
     OUTPUT_PATH.write_text(written.replace('\n"features": [', header, 1), encoding="utf-8")
 
+    logger.info(
+        "wrote %s: %s, %.1f MB, metadata %s",
+        OUTPUT_PATH.name,
+        logs.shape(communes),
+        OUTPUT_PATH.stat().st_size / 1_000_000,
+        metadata,
+    )
+
 
 def main() -> None:
+    logs.setup()
+    started = time.perf_counter()
+
+    logger.info("building the reference table every source joins onto")
     ref = communes_ref.build()
 
     communes = ref
-    for source in SOURCES:
-        communes = communes.join(source.build(ref), how="left")
+    for step, source in enumerate(SOURCES, start=1):
+        name = source.__name__.rsplit(".", 1)[-1]
+        logger.info("[%d/%d] %s", step, len(SOURCES), name)
+
+        at = time.perf_counter()
+        contribution = source.build(ref)
+        communes = communes.join(contribution, how="left")
+
+        logger.info(
+            "[%d/%d] %s contributed %d columns in %.1fs",
+            step,
+            len(SOURCES),
+            name,
+            len(contribution.columns),
+            time.perf_counter() - at,
+        )
 
     _write_output(communes)
+    logger.info("pipeline finished in %.1fs", time.perf_counter() - started)
 
 
 if __name__ == "__main__":
