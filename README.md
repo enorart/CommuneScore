@@ -29,7 +29,7 @@ That information exists. INSEE, ANIL, Île-de-France Mobilités and the Ministry
 
 ### How to use it
 
-1. **Pick a comparison zone.** Top of the sidebar. All of Île-de-France, one of the 8 départements, or one of the 63 intercommunalités. This matters more than it looks : see [Scope](#scope-what-a-score-is-relative-to).
+1. **Pick a comparison zone.** Top of the sidebar. All of Île-de-France, the petite or grande couronne, one of the 8 départements, or one of the 63 intercommunalités. This matters more than it looks : see [Scope](#scope-what-a-score-is-relative-to).
 2. **Set your priorities.** One slider per criterion. Sliding to **0 removes the criterion entirely** rather than scoring it zero, so "I don't have children and I don't care about schools" is possible.
 3. **Read the map.** Darker = better fit for *your* weights. The ranking beneath the sliders lists the best communes, each with a small "spine" of bars showing its profile at a glance : a commune strong everywhere and one strong in two things can share the same composite score.
 4. **Click a commune.** The popup breaks the score down criterion by criterion, showing the raw value next to each score. Rent, transport and security rows expand for detail.
@@ -108,7 +108,9 @@ Each criterion is scaled to 0–100 over the communes currently in scope. The **
 
 ### Scope: what a score is relative to
 
-A 0–100 score only means something relative to a set of communes, and **which set that is belongs to the user**: all of Île-de-France, one of the 8 départements, or one of the 63 intercommunalités.
+A 0–100 score only means something relative to a set of communes, and **which set that is belongs to the user**: all of Île-de-France, the petite couronne (92, 93, 94 — 122 communes) or the grande couronne (77, 78, 91, 95 — 1 143 communes), one of the 8 départements, or one of the 63 intercommunalités.
+
+The two couronnes are there because the ring immediately around Paris and the ring beyond it are different housing markets, and either is a fairer yardstick than the whole region without being as narrow as a single département. Paris belongs to neither, being what they are rings around.
 
 This is not cosmetic. Île-de-France is the wrong yardstick once a search has been narrowed: inside a single intercommunalité every commune lands in the same narrow band of the regional scale and the ranking stops discriminating at all. Changing the scope re-runs the entire normalisation over the selected communes only, from the raw columns the GeoJSON carries.
 
@@ -116,7 +118,7 @@ This is not cosmetic. Île-de-France is the wrong yardstick once a search has be
 
 Note: a small scope *forces* a 0 and a 100 by construction. In a 4-commune intercommunalité, the best and worst are pinned to the ends of the scale however close together they really are.
 
-A zone can be reached two ways. The dropdown works if you already know the name, but this is a lot of names to know, so the map is the other route: every commune popup names its département and its intercommunalité as buttons, and clicking one compares within it. Once a zone is selected, clicking any *faded* commune moves the zone to the one that click landed in, at the same granularity : so leaving Est Ensemble by clicking west lands you in Plaine Commune, not in a département.
+A zone can be reached two ways. The dropdown works if you already know the name, but this is a lot of names to know, so the map is the other route: every commune popup names its couronne, its département and its intercommunalité as buttons, and clicking one compares within it. Once a zone is selected, clicking any *faded* commune moves the zone to the one that click landed in, at the same granularity : so leaving Est Ensemble by clicking west lands you in Plaine Commune, not in a département, and leaving the petite couronne by clicking east lands you in the grande couronne.
 
 The grouping comes from IGN's data. 
 

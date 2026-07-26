@@ -4,6 +4,7 @@
 
 export const REGION_SCOPE_ID = "idf";
 
+const COURONNE_SCOPE = "couronne";
 const DEPARTMENT_SCOPE = "dep";
 const EPCI_SCOPE = "epci";
 
@@ -18,6 +19,19 @@ const DEPARTMENTS = {
   95: "Val-d'Oise",
 };
 
+// The two rings around Paris, in INSEE's sense. Paris itself belongs to
+// neither, being what they are rings around. Useful as a comparison set
+// because the inner ring is a different housing market from the outer one,
+// and either is a fairer yardstick than the whole region.
+const COURONNES = {
+  petite: { label: "Petite couronne", departments: ["92", "93", "94"] },
+  grande: { label: "Grande couronne", departments: ["77", "78", "91", "95"] },
+};
+
+function couronneOf(department) {
+  return Object.keys(COURONNES).find((key) => COURONNES[key].departments.includes(department));
+}
+
 /**
  * Build the scope list from the loaded features, so the intercommunalités
  * come from the data rather than from a list here that would go stale on the
@@ -30,6 +44,13 @@ export function buildScopes(features) {
   for (const { properties } of features) {
     epci.set(properties.code_epci, properties.nom_epci);
   }
+
+  const couronnes = Object.entries(COURONNES).map(([key, { label, departments }]) => ({
+    id: `${COURONNE_SCOPE}:${key}`,
+    label,
+    group: "Région",
+    matches: (props) => departments.includes(props.code_departement),
+  }));
 
   const departments = Object.entries(DEPARTMENTS).map(([code, name]) => ({
     id: `${DEPARTMENT_SCOPE}:${code}`,
@@ -54,20 +75,25 @@ export function buildScopes(features) {
       group: "Région",
       matches: () => true,
     },
+    ...couronnes,
     ...departments,
     ...intercommunalites,
   ];
 }
 
 /**
- * The two zones a given commune belongs to, as [département, intercommunalité].
+ * The zones a given commune belongs to, broadest first: couronne, département,
+ * intercommunalité. Paris arrondissements have no couronne, so they return two.
  *
  * Lets the popup name where a commune sits and, since each entry carries the
- * scope id, offer the zone as something to select — picking a comparison set
- * off the map rather than out of a list of 63 names.
+ * scope id, offer the zone as something to select : picking a comparison set
+ * off the map rather than out of a list of 60 odd names.
  */
 export function zonesOf(props) {
+  const couronne = couronneOf(props.code_departement);
+
   return [
+    ...(couronne ? [{ id: `${COURONNE_SCOPE}:${couronne}`, label: COURONNES[couronne].label }] : []),
     { id: `${DEPARTMENT_SCOPE}:${props.code_departement}`, label: DEPARTMENTS[props.code_departement] },
     { id: `${EPCI_SCOPE}:${props.code_epci}`, label: props.nom_epci },
   ];
