@@ -80,7 +80,7 @@ export const CRITERIA = [
     property: "score_securite",
     raw: "taux_delinquance",
     unit: "faits ‰ hab.",
-    defaultWeight: 3,
+    defaultWeight: 5,
     note: "Atteintes aux personnes et aux biens, hors stupéfiants",
   },
 ];

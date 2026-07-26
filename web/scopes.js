@@ -103,7 +103,15 @@ export function zonesOf(props) {
 // an out-of-scope commune jumps to. Staying at the same granularity .
 export function siblingZone(scope, props) {
   const kind = scope.id.split(":")[0];
-  return zonesOf(props).find((zone) => zone.id.startsWith(`${kind}:`));
+  const zones = zonesOf(props);
+
+  // Paris has no couronne, so a couronne scope has nothing of its own kind to
+  // offer there. Fall back to the département, which every commune has, rather
+  // than leave the click doing nothing.
+  return (
+    zones.find((zone) => zone.id.startsWith(`${kind}:`)) ??
+    zones.find((zone) => zone.id.startsWith(`${DEPARTMENT_SCOPE}:`))
+  );
 }
 
 // Renders the scope picker into `container` and returns the <select>, so the

@@ -118,7 +118,7 @@ This is not cosmetic. Île-de-France is the wrong yardstick once a search has be
 
 Note: a small scope *forces* a 0 and a 100 by construction. In a 4-commune intercommunalité, the best and worst are pinned to the ends of the scale however close together they really are.
 
-A zone can be reached two ways. The dropdown works if you already know the name, but this is a lot of names to know, so the map is the other route: every commune popup names its couronne, its département and its intercommunalité as buttons, and clicking one compares within it. Once a zone is selected, clicking any *faded* commune moves the zone to the one that click landed in, at the same granularity : so leaving Est Ensemble by clicking west lands you in Plaine Commune, not in a département, and leaving the petite couronne by clicking east lands you in the grande couronne.
+A zone can be reached two ways. The dropdown works if you already know the name, but this is a lot of names to know, so the map is the other route: every commune popup names its couronne, its département and its intercommunalité as buttons, and clicking one compares within it. Once a zone is selected, clicking any *faded* commune moves the zone to the one that click landed in, at the same granularity : so leaving Est Ensemble by clicking west lands you in Plaine Commune, not in a département, and leaving the petite couronne by clicking east lands you in the grande couronne. Clicking Paris from either couronne selects the Paris département, since Paris has no couronne of its own to offer.
 
 The grouping comes from IGN's data. 
 
