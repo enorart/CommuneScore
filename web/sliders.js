@@ -80,6 +80,15 @@ export const CRITERIA = [
     defaultWeight: 3,
     note: "Réseau ferré : RER, Transilien, métro, tramway",
   },
+  {
+    key: "securite",
+    label: "Sécurité",
+    property: "score_securite",
+    raw: "taux_delinquance",
+    unit: "faits ‰ hab.",
+    defaultWeight: 3,
+    note: "Atteintes aux personnes et aux biens, hors stupéfiants",
+  },
 ];
 
 export function initialWeights() {

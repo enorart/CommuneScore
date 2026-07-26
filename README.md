@@ -29,7 +29,9 @@ uv run python -m etl.pipeline
 
 Outputs `data/processed/communes_scores.geojson` (commune boundaries + population + département/intercommunalité + rent + equipment counts, keyed by `code_insee`). **Raw values only — nothing is scored here**; see Scoring below. Raw source files are cached under `data/raw/` on first fetch — delete a specific cache file to force a re-fetch of just that source.
 
-Currently wired in: `communes_ref` (reference geometry/population, Paris split into its 20 arrondissements), `rent`, `bpe`, and `idfm_gares`. The remaining source modules in `etl/sources/` (`ssmsi.py`, `corine.py`, `airparif.py`, `ips_schools.py`) are still stubs — see `PROJECT_PLAN.md` section 7 for build order.
+Currently wired in: `communes_ref` (reference geometry/population, Paris split into its 20 arrondissements), `rent`, `bpe`, `idfm_gares` and `ssmsi`. The remaining source modules in `etl/sources/` (`corine.py`, `airparif.py`, `ips_schools.py`) are still stubs — see `PROJECT_PLAN.md` section 7 for build order.
+
+Every source downloads through `etl/common/cache.py`'s `cached_download(url, filename)`, which fetches a file into `data/raw/` once and never again. That single seam is also what makes the manual workaround below work.
 
 `bpe` writes six curated criterion counts (`nb_sports`, `nb_culture`, `nb_enseignement`, `nb_sante`, `nb_commerces`, `nb_petite_enfance`) plus the 27 raw BPE sous-domaine counts (`bpe_a1` … `bpe_g1`), so criteria can be re-cut later without re-downloading. The criterion definitions and the reasoning behind them (why the 7 BPE domaines are too coarse to use directly) live at the top of `etl/sources/bpe.py`.
 
@@ -45,6 +47,12 @@ Equipment criteria are built in two steps:
 2. **Log min-max** (`logMinMaxScale`). `log1p` of that count, min-max scaled to 0–100. The log is the point: going from 1 reachable bakery to 10 changes daily life, going from 300 to 3 000 does not.
 
 Transport is scored the same way but on **distinct lines** reachable, not stations — three stops on the same RER get you to the same places, three different lines do not. It also measures reach differently: the IDFM data has real coordinates, so `neighbourhood.points_within` measures to the stations themselves. `aggregate` can only work at commune granularity, which credited Versailles with an RER A station 6.8 km away because Rueil-Malmaison happens to come within 2.3 km of its boundary. BPE has no coordinates, so it has no choice but to live with that.
+
+Security is the other exception, and the only criterion measured as a **rate**. `score_securite` is the inverted percentile rank of `taux_delinquance` — faits recorded per 1 000 inhabitants — so a quieter commune scores higher. A rate rather than a count because 400 burglaries in Paris 15e and 400 in a village are not the same fact and there is no saturation argument to lean on instead; a rank rather than min-max because the tail (Roissy-en-France reads 347 ‰, an airport absorbing offences against people who live elsewhere) would otherwise flatten everything else against it.
+
+Only 9 of SSMSI's 15 indicators feed it, split into `taux_atteintes_personnes` and `taux_atteintes_biens` for the popup. Left out: the three stupéfiants indicators (they count *mis en cause* on elucidated cases, so they measure police activity, and the same person is counted once per commune, so they do not add up), escroqueries (counted at the victim's residence, mostly online), vols sans violence contre des personnes (hits the daytime population — Paris 1er reads 312 ‰ on 15 114 residents) and violences physiques intrafamiliales (within the household, not a risk the neighbourhood confers). The reasoning in full is at the top of `etl/sources/ssmsi.py`.
+
+Two caveats the numbers carry. Offences are located where they were **committed**, not where the victim lives, so a commune with a station, a mall or an office district reads worse than a resident experiences. And SSMSI withholds any count below 5 faits over 3 successive years, publishing the mean over its département's withheld communes instead; `nb_indicateurs_estimes` records how many of the 9 that covers, and the popup footnote says so. It is not a rare case — the median IDF commune has 5 of 9 estimated.
 
 Rent skips both steps. `score_loyer` is the inverted percentile rank of `loyer_m2_moyen` (the mean of `loyer_m2_appartement` and `loyer_m2_maison`, in €/m², computed in the ETL), so cheaper scores higher. ANIL's `t1_t2` and `t3_plus` are carried through for tooltip detail but not scored — they're subsets of `loyer_m2_appartement` (correlation .96), so including them would weight apartments 3× against houses.
 
@@ -79,6 +87,8 @@ npm run preview  # preview in localhost the static built website
 
 `npm run dev` and `npm run build` both run a `predev`/`prebuild` hook (`web/scripts/sync-data.mjs`) that copies `data/processed/communes_scores.geojson` into `web/public/data/` so Vite can serve it. Re-run `uv run python -m etl.pipeline` any time you want the map to reflect fresher data, then restart `npm run dev` (or just re-run `npm run build`) to pick it up.
 
+One thing to know before reading the security layer at region scope: the rate is computed over the commune alone, so a 100-inhabitant village where a handful of faits were recorded swings between the extremes of the scale. Eight communes of 32–155 inhabitants score a perfect 100 on genuinely published zeros; the noise cuts both ways and speckles the rural edges of the map. Every other criterion is smoothed over a 1 km neighbourhood, which is the obvious remedy if this proves distracting.
+
 The map renders every IDF commune (+ Paris arrondissements) as a choropleth colored by the composite score. The scope picker at the top of the sidebar sets the comparison set (see above); communes outside it stay drawn but faded and unclickable, so a small intercommunalité is still placeable on the region. One slider per criterion (0 to `MAX_WEIGHT` in `sliders.js`, where 0 drops the criterion out of the average rather than scoring it zero) recolors the map and rebuilds the ranking live; clicking a commune or a ranking row opens a popup breaking the score down against its raw values, headed by where the commune sits (département and intercommunalité, each selectable as a zone). The rent and transport rows expand — rent into all four ANIL typologies (with the two that feed the score marked), transport into the commune's stations and every line reachable within 3 km. They behave as an accordion: eight criteria plus two open sections is taller than MapLibre has room for on either side of the click point.
 
 Two implementation notes: the source uses `promoteId: "code_insee"` so the composite lives in MapLibre feature state and the formula stays in one place in `app.js`, and updates are coalesced to one pass per animation frame — dragging a slider would otherwise queue 1285 feature-state writes per input event. Everything on the page reads from a single colour scale (`RAMP` in `app.js`), so the map, the per-commune "spine" bars in the ranking and the popup bars all mean the same thing and share one legend.
@@ -95,6 +105,7 @@ Wired in so far:
 | Rent (€/m²) | ANIL — Carte des loyers 2025, via data.gouv.fr | Licence Ouverte / Etalab 2.0 |
 | Equipment counts | INSEE — Base permanente des équipements 2025 | Licence Ouverte / Etalab 2.0 |
 | Rail stations and lines | Île-de-France Mobilités — Gares et stations du réseau ferré d'Île-de-France (par ligne) | Licence Ouverte v2.0 (Etalab) |
+| Recorded crime | SSMSI — Base statistique communale de la délinquance 2025, via data.gouv.fr | **ODbL v2** |
 
 Attribution for these is surfaced behind the map's (i) button — MapLibre's attribution control, fed by `SOURCE_ATTRIBUTION` in `web/app.js` and shown alongside the basemap's own credits. Add a row here and an entry there as each remaining source lands.
 

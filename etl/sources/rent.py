@@ -8,11 +8,9 @@ alongside for tooltip detail, per PROJECT_PLAN.md's "keep raw values
 alongside normalized scores" rule.
 """
 
-from pathlib import Path
-
 import polars as pl
-import requests
 
+from etl.common.cache import cached_download
 from etl.common.communes_ref import IDF_DEPARTMENTS
 
 TABULAR_API_URL = "https://tabular-api.data.gouv.fr/api/resources/{rid}/data/json/"
@@ -25,19 +23,11 @@ RESOURCES = {
     "loyer_m2_maison": "129f764d-b613-44e4-952c-5ff50a8c9b73",
 }
 
-RAW_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "raw"
-
 
 def _fetch_resource(column: str, rid: str) -> pl.DataFrame:
-    cache_path = RAW_DIR / f"rent_{column}.json"
+    path = cached_download(TABULAR_API_URL.format(rid=rid), f"rent_{column}.json", timeout=60)
 
-    if not cache_path.exists():
-        response = requests.get(TABULAR_API_URL.format(rid=rid), timeout=60)
-        response.raise_for_status()
-        RAW_DIR.mkdir(parents=True, exist_ok=True)
-        cache_path.write_bytes(response.content)
-
-    raw = pl.read_json(cache_path)
+    raw = pl.read_json(path)
     return raw.filter(pl.col("DEP").is_in(IDF_DEPARTMENTS)).select(
         pl.col("INSEE_C").alias("code_insee"),
         pl.col("loypredm2").alias(column),

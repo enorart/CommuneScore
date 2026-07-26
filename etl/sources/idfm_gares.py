@@ -14,30 +14,20 @@ no INSEE code. Keeping the geometry lets the pipeline measure distance to
 the stations themselves.
 """
 
-from pathlib import Path
-
 import geopandas as gpd
-import requests
+
+from etl.common.cache import cached_download
 
 EXPORT_URL = (
     "https://data.iledefrance-mobilites.fr/api/explore/v2.1/catalog/datasets/"
     "emplacement-des-gares-idf/exports/geojson"
 )
 
-RAW_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "raw"
-CACHE_PATH = RAW_DIR / "idfm_gares.geojson"
+CACHE_NAME = "idfm_gares.geojson"
 
 # Modes ordered as a rider ranks them for getting out of their commune:
 # regional rail first, then urban. Used only to sort line lists for display.
 MODE_ORDER = ["RER", "TRAIN", "METRO", "TRAMWAY", "TRAM", "VAL", "CABLE"]
-
-
-def _download() -> None:
-    if not CACHE_PATH.exists():
-        response = requests.get(EXPORT_URL, timeout=120)
-        response.raise_for_status()
-        RAW_DIR.mkdir(parents=True, exist_ok=True)
-        CACHE_PATH.write_bytes(response.content)
 
 
 def _line_sort_key(line: str) -> tuple[int, str, int, str]:
@@ -68,9 +58,7 @@ def fetch() -> gpd.GeoDataFrame:
     the Oise, say); they are kept, since they are genuinely reachable from
     the communes near the border.
     """
-    _download()
-
-    gares = gpd.read_file(CACHE_PATH)
+    gares = gpd.read_file(cached_download(EXPORT_URL, CACHE_NAME, timeout=120))
     return gares[["id_ref_zdc", "nom_zdc", "res_com", "mode", "geometry"]].rename(
         columns={
             "id_ref_zdc": "station_id",

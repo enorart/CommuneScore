@@ -13,7 +13,7 @@ import geopandas as gpd
 import pandas as pd
 
 from etl.common import communes_ref, neighbourhood
-from etl.sources import bpe, idfm_gares, rent
+from etl.sources import bpe, idfm_gares, rent, ssmsi
 
 OUTPUT_PATH = Path(__file__).resolve().parent.parent / "data" / "processed" / "communes_scores.geojson"
 
@@ -62,6 +62,28 @@ def _rail_access(ref: gpd.GeoDataFrame) -> pd.DataFrame:
     rail[counts] = rail[counts].fillna(0).astype("int64")
     return rail.fillna("")
 
+# TODO : clean code by combining the fetch of ssmsi
+def _security_rates(joined: pd.DataFrame) -> pd.DataFrame:
+    """Curated SSMSI offence counts as faits per 1 000 inhabitants.
+
+    The one criterion measured as a rate rather than a count. Per-capita was
+    rejected for equipment -- it ranks hamlets first -- but crime has no
+    saturation argument to stand on instead: 400 burglaries in Paris 15e and
+    400 in a village are not the same fact.
+
+    The denominator is communes_ref's population, not SSMSI's own insee_pop,
+    so every figure on the site divides by the same number. It is also why the
+    rates are recomputed from counts rather than read off the file, where
+    cambriolages are published per 1 000 logements and the rest per 1 000
+    habitants -- two denominators that cannot be added together.
+    """
+    counts = joined[ssmsi.CRIME_COLUMNS]
+    per_1000 = counts.div(joined["population"], axis=0).mul(1000)
+
+    rates = per_1000.round(2).rename(columns=lambda c: c.replace("nb_", "taux_"))
+    rates["taux_delinquance"] = per_1000.sum(axis=1, min_count=len(counts.columns)).round(2)
+    return rates
+
 
 def main() -> None:
     ref = communes_ref.build()
@@ -85,15 +107,19 @@ def main() -> None:
     # rail access : metro, tram, rer, train...
     joined = joined.join(_rail_access(ref))
 
-    # TODO: join security and environment scores here once those source
-    # modules are implemented.
+    # recorded crime, per commune
+    joined = joined.join(ssmsi.fetch().to_pandas().set_index("code_insee"), how="left")
+
+    # TODO: join environment scores here once those source modules are implemented.
     # ips_df = ips_schools.fetch()
-    # ssmsi_df = ssmsi.fetch()
     # corine_df = corine.fetch()
     # airparif_df = airparif.fetch()
 
     # The single rent figure the rent score is built from, in EUR/m2.
     joined["loyer_m2_moyen"] = joined[RENT_COLUMNS].mean(axis=1).round(2)
+
+    # The counts themselves are a step on the way; only the rates are shown.
+    joined = joined.join(_security_rates(joined)).drop(columns=ssmsi.CRIME_COLUMNS)
 
     # Combine all cleaned metrics
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)

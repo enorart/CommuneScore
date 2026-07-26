@@ -65,11 +65,16 @@ export function percentileRank(values, { invert = false } = {}) {
   });
 }
 
-// criterion key -> how its score is built, mirroring the scoring block of
-// etl/pipeline.py. Every criterion is a count scored on a log scale, bar rent:
-// it is a price, not a count, so the log has nothing to say about it, and
-// cheaper is better — hence the inverted rank.
-const SCORERS = { loyer: { scale: percentileRank, invert: true } };
+// criterion key -> how its score is built. Counts are scored on a log scale;
+// the two exceptions are the two criteria that are not counts. Rent is a price
+// and security a rate, so saturation has nothing to say about either, and for
+// both of them less is better — hence the inverted rank. Rank rather than
+// min-max because both have long tails that would otherwise flatten everything
+// else against them.
+const SCORERS = {
+  loyer: { scale: percentileRank, invert: true },
+  securite: { scale: percentileRank, invert: true },
+};
 
 for (const { key } of CRITERIA) {
   SCORERS[key] ??= { scale: logMinMaxScale };

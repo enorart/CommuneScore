@@ -21,18 +21,16 @@ Known limitations, worth remembering before scoring on these numbers:
 """
 
 import zipfile
-from pathlib import Path
 
 import polars as pl
-import requests
 
+from etl.common.cache import cached_download
 from etl.common.communes_ref import IDF_DEPARTMENTS, PARIS_CODE
 
 BPE_URL = "https://www.insee.fr/fr/statistiques/fichier/8217527/DS_BPE_CSV_FR.zip"
 DATA_MEMBER = "DS_BPE_2025_data.csv"
 
-RAW_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "raw"
-CACHE_PATH = RAW_DIR / "bpe_2025.zip"
+CACHE_NAME = "bpe_2025.zip"
 
 # The 7 BPE domaines are too coarse to score on directly, so criteria are
 # curated from the 28 sous-domaines instead. Excluded on purpose: A (86% of
@@ -63,21 +61,11 @@ TYPE_CRITERIA = {
 CRITERION_COLUMNS = list(SDOM_CRITERIA) + list(TYPE_CRITERIA)
 
 
-def _download() -> None:
-    if not CACHE_PATH.exists():
-        response = requests.get(BPE_URL, timeout=300)
-        response.raise_for_status()
-        RAW_DIR.mkdir(parents=True, exist_ok=True)
-        CACHE_PATH.write_bytes(response.content)
-
-
 def _read_idf_leaf_rows() -> pl.DataFrame:
     """Read the national CSV out of the cached zip and cut it down to leaf
     equipment counts for IDF communes and Paris arrondissements.
     """
-    _download()
-
-    with zipfile.ZipFile(CACHE_PATH) as archive:
+    with zipfile.ZipFile(cached_download(BPE_URL, CACHE_NAME)) as archive:
         raw = pl.read_csv(
             archive.read(DATA_MEMBER),
             separator=";",

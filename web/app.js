@@ -27,6 +27,8 @@ const SOURCE_ATTRIBUTION = [
   'Équipements : <a href="https://www.insee.fr/fr/statistiques/8217527" target="_blank" rel="noopener">INSEE BPE 2025</a>',
   'Réseau ferré : <a href="https://data.iledefrance-mobilites.fr/explore/dataset/emplacement-des-gares-idf/" target="_blank" rel="noopener">Île-de-France Mobilités</a>',
   'Contours et population : <a href="https://geoservices.ign.fr/adminexpress" target="_blank" rel="noopener">IGN ADMIN EXPRESS COG</a>',
+  // The one source not under Licence Ouverte, so it carries its own licence.
+  'Délinquance : <a href="https://www.data.gouv.fr/datasets/bases-statistiques-communale-departementale-et-regionale-de-la-delinquance-enregistree-par-la-police-et-la-gendarmerie-nationales" target="_blank" rel="noopener">SSMSI 2025</a> (ODbL v2)',
   "Licence Ouverte / Etalab 2.0",
 ];
 
@@ -114,7 +116,7 @@ function formatRaw(criterion, props) {
   return `${formatted} ${criterion.unit}`;
 }
 
-// The signature element: eight bars, one per criterion, each coloured by the
+// The signature element: one bar per criterion, each coloured by the
 // page's single scale. Same grammar in the ranking and in the popup, so a
 // commune's profile is recognisable at a glance before you read a number.
 function spineHtml(props) {
@@ -136,6 +138,17 @@ const RENT_TYPOLOGIES = [
   { key: "loyer_m2_maison", label: "Maison", scored: true },
 ];
 
+// SSMSI's 9 curated offence classes, grouped the way SSMSI itself groups them
+// (see etl/sources/ssmsi.py for what is in each family and what was left out).
+const CRIME_FAMILIES = [
+  { key: "taux_atteintes_personnes", label: "Atteintes aux personnes" },
+  { key: "taux_atteintes_biens", label: "Atteintes aux biens" },
+];
+
+// Mirror ssmsi.YEAR and the size of its INDICATOR_CRITERIA, for the footnote.
+const CRIME_YEAR = 2025;
+const CRIME_INDICATORS = 9;
+
 // Criteria whose single number hides something worth naming. `scored` marks
 // the part the score is actually built from; `wrap` is for values too long
 // to sit in a right-aligned column.
@@ -156,6 +169,15 @@ const DETAILS = {
       scored: true,
     },
   ],
+
+  // Both halves feed the score; they are worth splitting because they are not
+  // the same worry. Violence and burglary rank communes differently.
+  securite: (props) =>
+    CRIME_FAMILIES.map(({ key, label }) => ({
+      label,
+      scored: true,
+      value: props[key] == null ? "—" : `${rawFormat.format(props[key])} ‰`,
+    })),
 };
 
 // Most communes have nought to three stations, but a Paris arrondissement
@@ -200,6 +222,18 @@ function zoneLinks(props) {
       return `<button type="button" class="zone-link${active}" data-scope="${id}" title="${title}">${label}</button>`;
     })
     .join("");
+}
+
+// SSMSI withholds a count below 5 faits over 3 years and publishes the mean
+// over its département's withheld communes instead. On a small commune that
+// covers most of the figure, and saying so is the honest thing to do.
+function securityFootnote(props) {
+  const estimated = props.nb_indicateurs_estimes;
+  if (!estimated) return "";
+
+  const one = estimated === 1;
+  return ` ${estimated} des ${CRIME_INDICATORS} indicateurs y ${one ? "est couvert" : "sont couverts"}
+    par le secret statistique et ${one ? "remplacé" : "remplacés"} par la moyenne départementale.`;
 }
 
 function popupHtml(props) {
@@ -248,8 +282,11 @@ function popupHtml(props) {
         Loyer : moyenne appartement et maison, en €/m². Équipements accessibles
         dans un rayon de ${NEARBY_RADIUS_KM} km, soit
         ${numberFormat.format(props[`population_${NEARBY_RADIUS_KM}km`])} habitants.
-        Les scores suivent une échelle logarithmique : passer de 1 à 10 équipements
-        pèse plus que de 300 à 3 000. Ils sont relatifs aux
+        Sécurité : faits enregistrés en ${CRIME_YEAR} sur le territoire de la commune,
+        pour 1 000 habitants.${securityFootnote(props)}
+        Les scores des équipements suivent une échelle logarithmique : passer de 1
+        à 10 équipements pèse plus que de 300 à 3 000 ; le loyer et la sécurité,
+        des rangs. Tous sont relatifs aux
         ${numberFormat.format(scopeCount)} communes de « ${scope.label} » : un 100 est le meilleur de cette sélection, pas de la région.
       </p>
     </div>
@@ -359,7 +396,7 @@ function map_init() {
         toggle.addEventListener("click", () => {
           const open = toggle.getAttribute("aria-expanded") === "true";
 
-          // One section at a time: with eight criteria already listed, two
+          // One section at a time: with every criterion already listed, two
           // open sections make the popup taller than the map has room for
           // on either side of the point.
           for (const other of toggles) {
