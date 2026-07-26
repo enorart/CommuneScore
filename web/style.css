@@ -350,7 +350,12 @@ input[type="range"]:focus-visible {
 
 /* ---------- Popup ---------- */
 
-.maplibregl-popup-content {
+/* The class is doubled to win a specificity tie. maplibre-gl.css is imported
+   from app.js, so Vite injects it after this file and beats an equal selector.
+   The padding has to be ours: `position: sticky; top: 0` on the header below
+   pins to the scroll container's *padding* box, so MapLibre's own 15px would
+   leave a strip above the pinned header with the table scrolling through it. */
+.maplibregl-popup-content.maplibregl-popup-content {
   padding: 0;
   /* MapLibre picks a side to hang the popup from but never shrinks it, so
      anything taller than the space beside the click point runs off the map.
@@ -369,13 +374,37 @@ input[type="range"]:focus-visible {
   padding: 0.9rem 1rem 0.8rem;
 }
 
+/* MapLibre appends its close button to the popup content, which is the element
+   we made scrollable, so it scrolled away with the table and left nothing to
+   click. wirePopup() in app.js moves it into the sticky header instead; the
+   header is positioned, so it becomes the button's containing block and the
+   button now rides along with the commune name. Offsets pull it back out over
+   the header's padding, into the popup's corner where it was — but not past
+   it: the scroll container clips, so a negative `top` would shave the button.
+   Doubled class for the same cascade reason as the padding below. */
+.maplibregl-popup-close-button.maplibregl-popup-close-button {
+  top: 0.15rem;
+  right: -0.6rem;
+}
+
 /* Stays put while the body scrolls, so it is always clear which commune the
-   numbers belong to. */
+   numbers belong to.
+
+   The space above the name belongs to this rule and not to .commune-popup's
+   own padding: only what is inside the sticky element stays opaque, so put it
+   outside and the table scrolls up through the gap. The negative margin
+   cancels that outer padding first, so the header still pins flush to the top
+   edge of the scroll container.
+
+   Keep the padding as one shorthand. Setting padding-top in a separate rule
+   loses to this one — `.commune-popup > header` and `.commune-popup header`
+   have the same specificity, so whichever comes last wins. */
 .commune-popup header {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 0 1.2rem 0.4rem 0;
+  margin-top: -0.9rem;
+  padding: 1.35rem 1.2rem 0.4rem 0;
   background: white;
 }
 
@@ -456,6 +485,25 @@ input[type="range"]:focus-visible {
   letter-spacing: 0.11em;
   text-transform: uppercase;
   color: var(--ink-faint);
+}
+
+/* The ten criteria, in two columns. Two tables rather than one so that a
+   criterion's detail rows open under it and not across the gap. */
+.popup-criteria {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 1.5rem;
+  align-items: start;
+}
+
+/* Back to one list where two columns no longer fit. Keyed to the viewport
+   rather than the popup: the popup is sized shrink-to-fit, and giving it
+   `container-type: inline-size` would contain the inline axis and collapse it
+   to nothing. Its width tracks the viewport anyway, being capped at 92vw. */
+@media (max-width: 640px) {
+  .popup-criteria {
+    grid-template-columns: 1fr;
+  }
 }
 
 .commune-popup table {

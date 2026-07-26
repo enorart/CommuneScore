@@ -105,7 +105,10 @@ function readMetadata(communes) {
 
 function start(map, communes) {
   const meta = readMetadata(communes);
-  const popup = new Popup({ closeButton: true, closeOnClick: true, maxWidth: "340px" });
+  // Wide enough for the two criterion columns render.js lays out, but never
+  // wider than the screen: MapLibre writes this straight onto style.maxWidth,
+  // so a responsive CSS value does the mobile case without a media query.
+  const popup = new Popup({ closeButton: true, closeOnClick: true, maxWidth: "min(680px, 92vw)" });
   const rankingList = document.getElementById("ranking-list");
   const rankingCount = document.getElementById("ranking-count");
 
@@ -136,6 +139,15 @@ function start(map, communes) {
   // reattached every time rather than bound once.
   function wirePopup(instance) {
     const element = instance.getElement();
+
+    // MapLibre appends its close button to the popup content, which is also
+    // the scroll container, so it scrolled out of reach as soon as a detail
+    // section made the popup taller than the map. Rehomed into the sticky
+    // header, it stays put alongside the commune name. Moving the node keeps
+    // MapLibre's own click handler on it.
+    const closeButton = element.querySelector(".maplibregl-popup-close-button");
+    const header = element.querySelector(".commune-popup header");
+    if (closeButton && header) header.append(closeButton);
 
     for (const link of element.querySelectorAll(".zone-link:not(.is-active)")) {
       link.addEventListener("click", () => {

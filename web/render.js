@@ -151,28 +151,38 @@ function securityFootnote(props, total) {
     par le secret statistique et ${one ? "remplacé" : "remplacés"} par la moyenne départementale.`;
 }
 
+// A criterion's own row, followed by its detail rows when it has any.
+function criterionRows(criterion, props, weights) {
+  const score = props[criterion.property];
+  const muted = weights[criterion.key] === 0 ? " is-muted" : "";
+
+  const label = DETAILS[criterion.key]
+    ? `<button type="button" class="detail-toggle" data-group="${criterion.key}" aria-expanded="false">${criterion.label}</button>`
+    : criterion.label;
+
+  return `
+    <tr class="criterion-row${muted}">
+      <th>${label}</th>
+      <td class="num">${formatRaw(criterion, props)}</td>
+      <td class="bar">
+        <span style="width:${score ?? 0}%;background:${rampColor(score)}"></span>
+      </td>
+      <td class="num score">${score == null ? NO_VALUE : scoreFormat.format(score)}</td>
+    </tr>
+    ${detailRows(criterion.key, props)}`;
+}
+
 export function popupHtml(props, { weights, scope, scopeCount, meta }) {
   const composite = compositeScore(props, weights);
 
-  const rows = CRITERIA.map((criterion) => {
-    const score = props[criterion.property];
-    const muted = weights[criterion.key] === 0 ? " is-muted" : "";
-
-    const label = DETAILS[criterion.key]
-      ? `<button type="button" class="detail-toggle" data-group="${criterion.key}" aria-expanded="false">${criterion.label}</button>`
-      : criterion.label;
-
-    return `
-      <tr class="criterion-row${muted}">
-        <th>${label}</th>
-        <td class="num">${formatRaw(criterion, props)}</td>
-        <td class="bar">
-          <span style="width:${score ?? 0}%;background:${rampColor(score)}"></span>
-        </td>
-        <td class="num score">${score == null ? NO_VALUE : scoreFormat.format(score)}</td>
-      </tr>
-      ${detailRows(criterion.key, props)}`;
-  }).join("");
+  // Side by side rather than one list: ten criteria stacked make a popup
+  // taller than the map has room for. Each half is its own table so that a
+  // criterion's detail rows still open directly beneath it, and so the two
+  // columns size their numbers independently.
+  const half = Math.ceil(CRITERIA.length / 2);
+  const columns = [CRITERIA.slice(0, half), CRITERIA.slice(half)]
+    .map((group) => `<table>${group.map((c) => criterionRows(c, props, weights)).join("")}</table>`)
+    .join("");
 
   return `
     <div class="commune-popup">
@@ -189,7 +199,7 @@ export function popupHtml(props, { weights, scope, scopeCount, meta }) {
         <span class="popup-score-label">score composite</span>
       </div>
 
-      <table>${rows}</table>
+      <div class="popup-criteria">${columns}</div>
 
       <p class="popup-footnote">
         Loyer : moyenne appartement et maison, en €/m². Équipements accessibles
