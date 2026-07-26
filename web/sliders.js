@@ -1,10 +1,12 @@
 // The criteria the composite score is built from, and the weight state the
 // user controls. app.js reads both to recolor the map and rebuild the
-// ranking on every slider move (see PROJECT_PLAN.md section 6).
+// ranking on every slider move.
 //
-// `property` is the 0-100 score column written by etl/pipeline.py; `raw` is
-// the underlying value shown in the popup, so a commune's real numbers stay
-// visible next to its abstract score.
+// This list is the one place to extend when a new source lands: the map, the
+// sliders, the ranking, the spine bars, the popup and the scope re-scoring all
+// iterate it. `property` is the 0-100 score written by scoring.js; `raw` is the
+// underlying value shown in the popup, so a commune's real numbers stay visible
+// next to its abstract score.
 
 // Radius the equipment counts were aggregated over. Must match
 // NEARBY_SUFFIX in etl/pipeline.py — it is baked into the column names.

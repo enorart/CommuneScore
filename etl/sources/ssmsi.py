@@ -48,6 +48,7 @@ RESOURCE_ID = "604d71b8-337d-4869-9226-49e01bae87df"
 
 # Latest year published. Pinned rather than read off the file, so a refreshed
 # download cannot silently change which year the map is showing.
+# Only data of crime / violence commited in 2025.
 YEAR = 2025
 
 CACHE_NAME = f"ssmsi_communes_{YEAR}.parquet"

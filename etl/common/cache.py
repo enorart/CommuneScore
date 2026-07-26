@@ -5,10 +5,11 @@ change more than once a year, so the raw file is kept on disk and the download
 is skipped if it is already there. Deleting one file forces a re-fetch of just
 that source.
 
-The cache is also the seam the manual workaround relies on: on a machine
-behind a TLS-intercepting proxy `requests` cannot reach any HTTPS host, and
-downloading the file by hand into the exact path below is enough to make the
-pipeline run (see PROGRESS.md).
+The cache is also the seam the manual workaround relies on: behind a
+TLS-intercepting proxy `requests` cannot reach any HTTPS host, and downloading
+the file by hand into the exact path a module expects -- each names it in a
+CACHE_NAME constant, resolved against RAW_DIR below -- is enough to make the
+pipeline run without it.
 """
 
 from pathlib import Path

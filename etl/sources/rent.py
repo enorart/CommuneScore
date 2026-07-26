@@ -4,8 +4,8 @@
 Four typology-specific resources are published; all four are fetched since
 it's the same API shape, but `loyer_m2_appartement` (all apartment typologies
 combined) is the one used for the composite score. The others are kept
-alongside for tooltip detail, per PROJECT_PLAN.md's "keep raw values
-alongside normalized scores" rule.
+alongside for tooltip detail: the raw numbers are worth more to someone
+choosing where to live than the abstract score built from them.
 """
 
 import polars as pl
