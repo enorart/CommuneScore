@@ -1,9 +1,6 @@
 // The comparison set: the communes a score is measured against.
-//
-// Île-de-France as a whole is the wrong yardstick once you have narrowed your
-// search — inside one intercommunalité every commune lands in the same narrow
-// band. Picking a scope re-scores the selection against itself (see
-// scoring.js), so 100 means "the best of what I am actually choosing between".
+// Picking a scope re-scores the selection against itself,
+// so 100 means "the best of what I am actually choosing between".
 
 export const REGION_SCOPE_ID = "idf";
 
@@ -76,10 +73,8 @@ export function zonesOf(props) {
   ];
 }
 
-// The zone of the same kind as `scope` that `props` belongs to — what clicking
-// an out-of-scope commune jumps to. Staying at the same granularity is the
-// point: leaving one intercommunalité should land you in another, not in a
-// département.
+// The zone of the same kind as `scope` that `props` belongs to : what clicking
+// an out-of-scope commune jumps to. Staying at the same granularity .
 export function siblingZone(scope, props) {
   const kind = scope.id.split(":")[0];
   return zonesOf(props).find((zone) => zone.id.startsWith(`${kind}:`));

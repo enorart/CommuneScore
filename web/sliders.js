@@ -1,18 +1,12 @@
 // The criteria the composite score is built from, and the weight state the
 // user controls. app.js reads both to recolor the map and rebuild the
 // ranking on every slider move.
-//
-// This list is the one place to extend when a new source lands: the map, the
-// sliders, the ranking, the spine bars, the popup and the scope re-scoring all
-// iterate it. `property` is the 0-100 score written by scoring.js; `raw` is the
-// underlying value shown in the popup, so a commune's real numbers stay visible
-// next to its abstract score.
 
 // Radius the equipment counts were aggregated over. Must match
-// NEARBY_SUFFIX in etl/pipeline.py — it is baked into the column names.
+// NEARBY_SUFFIX in etl/pipeline.py => the column names.
 export const NEARBY_RADIUS_KM = 1;
 
-export const MAX_WEIGHT = 6;
+const MAX_WEIGHT = 6;
 
 export const CRITERIA = [
   {
@@ -21,8 +15,6 @@ export const CRITERIA = [
     property: "score_loyer",
     raw: "loyer_m2_moyen",
     unit: "€/m²",
-    // Rent is the constraint that actually rules a housing search, so it
-    // starts heavier than the rest.
     defaultWeight: 5,
   },
   {
@@ -93,12 +85,12 @@ export const CRITERIA = [
   },
 ];
 
+// initialisation
 export function initialWeights() {
   return Object.fromEntries(CRITERIA.map((c) => [c.key, c.defaultWeight]));
 }
 
-// Renders one range input per criterion into `container`. `weights` is a
-// mutable object the caller owns; onChange() fires after every move.
+// render the sliders
 export function renderSliders(container, weights, onChange) {
   container.innerHTML = "";
 

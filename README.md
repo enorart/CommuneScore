@@ -139,10 +139,13 @@ etl/
 
 web/
   index.html  style.css
-  app.js                # map, choropleth, ranking, popups, scope wiring
-  sliders.js            # the criteria list — THE place to extend when a source lands
-  scoring.js            # all 0-100 scoring, per scope
+  app.js                # map, application state, event wiring
+  sliders.js            # the criteria list, THE place to extend when a source lands
+  scoring.js            # all scoring: per criterion 0-100, and the composite
   scopes.js             # the scope comparison sets
+  render.js             # every HTML string (popup, ranking rows, spine bars)
+  colors.js             # the single colour scale, shared by map, bars and legend
+  geometry.js           # bounds and centroid, for framing and placing popups
   scripts/sync-data.mjs # copies the GeoJSON into web/public/ before dev/build
 
 data/
@@ -197,9 +200,9 @@ npm run preview  # serve the built site locally
 
 Three implementation notes that are load-bearing:
 
-- The map source uses `promoteId: "code_insee"`, so the composite score lives in MapLibre **feature state** and the formula stays in one place in `app.js`.
+- The map source uses `promoteId: "code_insee"`, so the composite score lives in MapLibre **feature state** and the formula stays in one place (`compositeScore` in `scoring.js`).
 - Feature-state updates are **coalesced to one pass per animation frame**. Dragging a slider would otherwise queue 1 285 writes per input event.
-- Everything on the page reads from a **single colour scale** (`RAMP` in `app.js`) — the map, the ranking spines and the popup bars all mean the same thing, and one legend explains all three.
+- Everything on the page reads from a **single colour scale** (`RAMP` in `colors.js`): the map, the ranking spines and the popup bars all mean the same thing, and one legend explains all three.
 
 ---
 

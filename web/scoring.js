@@ -1,8 +1,7 @@
 // Per-criterion 0-100 scores, recomputed in the browser over whatever set of
-// communes the user has scoped to (see scopes.js).
-//
-// This is the only place scoring happens. The ETL writes raw values and
-// nothing else, because a 0-100 score only means something relative to a set
+// communes the user has scoped to.
+// This is the only place scoring happens. The ETL writes raw values only,
+// because a 0-100 score only means something relative to a set
 // of communes, and which set that is belongs to the user: what counts as good
 // transport among 1285 communes is not what counts as good transport inside
 // one intercommunalité.
@@ -17,14 +16,12 @@ function scaleFinite(values, transform) {
   return transform(values, known);
 }
 
-export function minMaxScale(values, { invert = false } = {}) {
+function minMaxScale(values, { invert = false } = {}) {
   return scaleFinite(values, (all, known) => {
     const low = Math.min(...known);
     const high = Math.max(...known);
 
-    // Every commune identical — reachable in a small scope, where a handful of
-    // rural communes can share a count exactly. 50 rather than a division by
-    // zero.
+    // Case where every commune are identical
     if (high === low) return all.map((value) => (value == null ? null : 50));
 
     return all.map((value) => {
@@ -37,16 +34,15 @@ export function minMaxScale(values, { invert = false } = {}) {
 
 // For counts that saturate: going from 1 reachable bakery to 10 changes daily
 // life, going from 300 to 3000 does not.
-export function logMinMaxScale(values, options) {
+function logMinMaxScale(values, options) {
   return minMaxScale(
     values.map((value) => (value == null ? null : Math.log1p(value))),
     options
   );
 }
 
-// Rank as a percentage, ties sharing the average of the ranks they span —
-// pandas' rank(method="average", pct=True).
-export function percentileRank(values, { invert = false } = {}) {
+// Rank as a percentage, ties sharing the average of the ranks they span
+function percentileRank(values, { invert = false } = {}) {
   return scaleFinite(values, (all, known) => {
     const order = [...known].sort((a, b) => (invert ? b - a : a - b));
 
@@ -106,4 +102,26 @@ export function applyScores(features, inScope) {
       inScope[index].properties[criterion.property] = score == null ? null : Math.round(score * 10) / 10;
     });
   }
+}
+
+/**
+ * Weighted average of the enabled criteria, on the same 0-100 scale as its parts.
+ *
+ * A criterion at weight 0 drops out of the average entirely rather than pulling
+ * the result toward zero, so muting one means "don't care", not "score badly".
+ * Same for a null score: no answer, rather than a bad one.
+ */
+export function compositeScore(props, weights) {
+  let weighted = 0;
+  let total = 0;
+
+  for (const criterion of CRITERIA) {
+    const weight = weights[criterion.key];
+    const score = props[criterion.property];
+    if (!weight || score == null) continue;
+    weighted += weight * score;
+    total += weight;
+  }
+
+  return total === 0 ? null : weighted / total;
 }
