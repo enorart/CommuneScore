@@ -4,7 +4,7 @@
 import { Map as MapLibreMap, NavigationControl, Popup, setWorkerUrl } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
-import { initialWeights, renderSliders } from "./sliders.js";
+import { NEARBY_RADIUS_KM, initialWeights, renderSliders } from "./sliders.js";
 import { REGION_SCOPE_ID, buildScopes, renderScopeSelect, siblingZone } from "./scopes.js";
 import { applyScores, compositeScore } from "./scoring.js";
 import { fillColorExpression, renderLegend } from "./colors.js";
@@ -86,7 +86,24 @@ function addCommuneLayers(map, communes) {
   });
 }
 
+// Choices the ETL made, written into the GeoJSON by etl/pipeline.py so the UI
+// states them back rather than keeping its own copy.
+function readMetadata(communes) {
+  const meta = communes.metadata;
+  if (!meta) throw new Error("communes_scores.geojson has no metadata: re-run `uv run python -m etl.pipeline`");
+
+  // The radius is baked into the column names CRITERIA reads, so unlike the
+  // rest it cannot simply be taken at runtime. Say so instead of drifting.
+  if (meta.neighbourhood_radius_km !== NEARBY_RADIUS_KM) {
+    console.warn(
+      `ETL neighbourhood radius is ${meta.neighbourhood_radius_km} km but sliders.js expects ${NEARBY_RADIUS_KM} km`
+    );
+  }
+  return meta;
+}
+
 function start(map, communes) {
+  const meta = readMetadata(communes);
   const popup = new Popup({ closeButton: true, closeOnClick: true, maxWidth: "340px" });
   const rankingList = document.getElementById("ranking-list");
   const rankingCount = document.getElementById("ranking-count");
@@ -104,7 +121,7 @@ function start(map, communes) {
   let selected = null;
 
   // What render.js needs to draw the popup and the ranking.
-  const view = () => ({ weights, scope, scopeCount: inScope.length, selected });
+  const view = () => ({ weights, scope, scopeCount: inScope.length, selected, meta });
 
   function select(props, lngLat) {
     selected = props.code_insee;

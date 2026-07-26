@@ -15,7 +15,9 @@ the stations themselves.
 """
 
 import geopandas as gpd
+import pandas as pd
 
+from etl.common import neighbourhood
 from etl.common.cache import cached_download
 
 EXPORT_URL = (
@@ -66,3 +68,44 @@ def fetch() -> gpd.GeoDataFrame:
             "res_com": "ligne",
         }
     )
+
+
+def build(ref: gpd.GeoDataFrame) -> pd.DataFrame:
+    """Rail access per commune: stations inside it, and lines within reach.
+
+    Lines rather than stations are what the score reads: three stops on the same
+    RER get you to the same places, three different lines do not.
+
+    Reach is measured with points_within rather than neighbourhood.aggregate
+    because this source has real coordinates. Aggregating at commune
+    granularity credited Versailles with an RER A station 6.8 km away, on the
+    grounds that Rueil-Malmaison comes within 2.3 km of its boundary.
+    """
+    stations = fetch()
+
+    communes = ref[["geometry"]].rename_axis("code_insee").reset_index()
+    inside = stations.to_crs(communes.crs).sjoin(communes, how="inner", predicate="within")
+
+    own = inside.groupby("code_insee").agg(
+        nb_gares=("station_id", "nunique"),
+        gares=("gare", lambda names: ", ".join(sorted(set(names)))),
+    )
+
+    nearby = (
+        neighbourhood.points_within(ref, stations)
+        .groupby("code_insee")
+        .agg(
+            **{
+                neighbourhood.column("nb_gares"): ("station_id", "nunique"),
+                neighbourhood.column("nb_lignes"): ("ligne", "nunique"),
+                neighbourhood.column("lignes"): ("ligne", lambda lines: format_lines(lines.dropna())),
+            }
+        )
+    )
+
+    rail = own.join(nearby, how="outer").reindex(ref.index)
+
+    # A commune with no station has none, not an unknown number of them.
+    counts = [c for c in rail.columns if c.startswith("nb_")]
+    rail[counts] = rail[counts].fillna(0).astype("int64")
+    return rail.fillna("")

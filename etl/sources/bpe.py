@@ -22,10 +22,12 @@ Known limitations, worth remembering before scoring on these numbers:
 
 import zipfile
 
+import geopandas as gpd
+import pandas as pd
 import polars as pl
 
+from etl.common import insee, neighbourhood
 from etl.common.cache import cached_download
-from etl.common.communes_ref import IDF_DEPARTMENTS, PARIS_CODE
 
 BPE_URL = "https://www.insee.fr/fr/statistiques/fichier/8217527/DS_BPE_CSV_FR.zip"
 DATA_MEMBER = "DS_BPE_2025_data.csv"
@@ -73,16 +75,15 @@ def _read_idf_leaf_rows() -> pl.DataFrame:
             schema_overrides={"GEO": pl.Utf8},
         )
 
-    is_idf_commune = (
-        (pl.col("GEO_OBJECT") == "COM")
-        & pl.col("GEO").str.slice(0, 2).is_in(IDF_DEPARTMENTS)
-        & (pl.col("GEO") != PARIS_CODE)
-    )
+    # GEO_OBJECT is what makes this file different: the same code appears at
+    # several territory levels, so the level has to be pinned before the code
+    # can be read as a commune.
+    is_commune = (pl.col("GEO_OBJECT") == "COM") & insee.idf_communes("GEO")
     is_paris_arrondissement = (pl.col("GEO_OBJECT") == "ARM") & pl.col("GEO").str.starts_with("751")
 
     return (
         raw.filter(pl.col("FACILITY_TYPE") != "_T")
-        .filter(is_idf_commune | is_paris_arrondissement)
+        .filter(is_commune | is_paris_arrondissement)
         .rename({"GEO": "code_insee"})
         .select("code_insee", "FACILITY_SDOM", "FACILITY_TYPE", "OBS_VALUE")
     )
@@ -111,8 +112,8 @@ def _criterion_counts(rows: pl.DataFrame) -> pl.DataFrame:
 
 
 def fetch() -> pl.DataFrame:
-    """Return a DataFrame with columns: code_insee, the seven nb_* criterion
-    counts, and one bpe_<sous-domaine> raw count per BPE sous-domaine.
+    """Return a DataFrame with columns: code_insee, one nb_* count per curated
+    criterion, and one bpe_<sous-domaine> raw count per BPE sous-domaine.
     """
     rows = _read_idf_leaf_rows()
 
@@ -127,3 +128,18 @@ def fetch() -> pl.DataFrame:
     ordered = ["code_insee", *CRITERION_COLUMNS, *sorted(c for c in counts if c.startswith("bpe_"))]
 
     return result.with_columns(pl.col(counts).fill_null(0).cast(pl.Int32)).select(ordered).sort("code_insee")
+
+
+def build(ref: gpd.GeoDataFrame) -> pd.DataFrame:
+    """Counts inside the commune, and counts within reach of it.
+
+    What matters for choosing where to live is how much is reachable, not how
+    much sits inside the commune's own borders, so every criterion is counted
+    again over the neighbourhood. The neighbourhood population rides along: it
+    is the figure those counts are read against ("X equipements, soit Y
+    habitants").
+    """
+    counts = insee.by_commune(fetch()).reindex(ref.index)
+    nearby = neighbourhood.aggregate(ref, counts[CRITERION_COLUMNS])
+
+    return counts.join(nearby.astype("int64"))

@@ -20,9 +20,7 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 
-IDF_DEPARTMENTS = ["75", "77", "78", "91", "92", "93", "94", "95"]
-
-PARIS_CODE = "75056"
+from etl.common.insee import IDF_DEPARTMENTS, PARIS_CODE
 
 WFS_BASE_URL = "https://data.geopf.fr/wfs/ows"
 

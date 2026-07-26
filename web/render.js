@@ -1,6 +1,6 @@
 // Every HTML string the app builds : the popup, the ranking rows and the spine
-// bars. Nothing here holds state; app.js passes in the weights and the current
-// scope, so display never has to reach for a global.
+// bars. Nothing here holds state; app.js passes in the weights, the current
+// scope and the dataset metadata, so display never has to reach for a global.
 
 import { CRITERIA, NEARBY_RADIUS_KM } from "./sliders.js";
 import { compositeScore } from "./scoring.js";
@@ -12,10 +12,6 @@ const NO_VALUE = "—";
 const numberFormat = new Intl.NumberFormat("fr-FR");
 const scoreFormat = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
 const rawFormat = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 });
-
-// Mirrors etl/sources/ssmsi.py (YEAR, and the size of INDICATOR_CRITERIA).
-const CRIME_YEAR = 2025;
-const CRIME_INDICATORS = 9;
 
 // A Paris arrondissement has twenty odd stations, enough to bury the rest of
 // the popup. The line list is left whole : that one answers "where can I get to".
@@ -126,16 +122,16 @@ function zoneLinks(props, scope) {
 
 // SSMSI withholds any count below 5 faits over 3 years and publishes its
 // département's mean instead. On a small commune that covers most of the figure.
-function securityFootnote(props) {
+function securityFootnote(props, total) {
   const estimated = props.nb_indicateurs_estimes;
   if (!estimated) return "";
 
   const one = estimated === 1;
-  return ` ${estimated} des ${CRIME_INDICATORS} indicateurs y ${one ? "est couvert" : "sont couverts"}
+  return ` ${estimated} des ${total} indicateurs y ${one ? "est couvert" : "sont couverts"}
     par le secret statistique et ${one ? "remplacé" : "remplacés"} par la moyenne départementale.`;
 }
 
-export function popupHtml(props, { weights, scope, scopeCount }) {
+export function popupHtml(props, { weights, scope, scopeCount, meta }) {
   const composite = compositeScore(props, weights);
 
   const rows = CRITERIA.map((criterion) => {
@@ -179,8 +175,8 @@ export function popupHtml(props, { weights, scope, scopeCount }) {
         Loyer : moyenne appartement et maison, en €/m². Équipements accessibles
         dans un rayon de ${NEARBY_RADIUS_KM} km, soit
         ${numberFormat.format(props[`population_${NEARBY_RADIUS_KM}km`])} habitants.
-        Sécurité : faits enregistrés en ${CRIME_YEAR} sur le territoire de la commune,
-        pour 1 000 habitants.${securityFootnote(props)}
+        Sécurité : faits enregistrés en ${meta.securite.annee} sur le territoire de la
+        commune, pour 1 000 habitants.${securityFootnote(props, meta.securite.nb_indicateurs)}
         Les scores des équipements suivent une échelle logarithmique : passer de 1
         à 10 équipements pèse plus que de 300 à 3 000 ; le loyer et la sécurité,
         des rangs. Tous sont relatifs aux

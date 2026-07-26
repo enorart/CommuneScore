@@ -36,10 +36,12 @@ Known limitations, worth remembering before scoring on these numbers:
   - recorded offences, not offences committed.
 """
 
+import geopandas as gpd
+import pandas as pd
 import polars as pl
 
+from etl.common import insee
 from etl.common.cache import cached_download
-from etl.common.communes_ref import IDF_DEPARTMENTS, PARIS_CODE
 
 # The RID resolves to the communal base in parquet. data.gouv.fr redirects to
 # whichever version of that resource is current, so the URL never goes stale.
@@ -89,8 +91,7 @@ def _read_idf_rows() -> pl.DataFrame:
         # `indicateur` is a Categorical; comparing it as text keeps the filter
         # independent of the file's category ordering.
         .filter(pl.col("indicateur").cast(pl.Utf8).is_in(CURATED_INDICATORS))
-        .filter(pl.col("CODGEO_2026").str.slice(0, 2).is_in(IDF_DEPARTMENTS))
-        .filter(pl.col("CODGEO_2026") != PARIS_CODE)
+        .filter(insee.idf_communes("CODGEO_2026"))
         .select(
             pl.col("CODGEO_2026").alias("code_insee"),
             pl.col("indicateur").cast(pl.Utf8),
@@ -115,11 +116,10 @@ def fetch() -> pl.DataFrame:
     """Return a DataFrame with columns: code_insee, nb_atteintes_personnes,
     nb_atteintes_biens, nb_indicateurs_estimes.
 
-    Counts, not rates: the pipeline turns these into faits per 1 000
-    inhabitants using communes_ref's population, so that every rate on the
-    site divides by the same figure. The rates published alongside could not
-    be summed anyway -- cambriolages are given per 1 000 logements, every
-    other indicator per 1 000 habitants.
+    Counts, not rates: build() divides them, so that the denominator is the
+    same population the rest of the site uses. The rates published alongside
+    could not be summed anyway -- cambriolages are given per 1 000 logements,
+    every other indicator per 1 000 habitants.
 
     A commune absent from the file comes out absent here too, and so lands as
     null rather than as zero: unlike a commune with no cinema in bpe.py, it is
@@ -138,3 +138,32 @@ def fetch() -> pl.DataFrame:
     )
 
     return counts.with_columns(pl.col(c).cast(pl.Int32) for c in counts.columns[1:]).sort("code_insee")
+
+
+def build(ref: gpd.GeoDataFrame) -> pd.DataFrame:
+    """The curated counts as faits per 1 000 inhabitants, by family and in total.
+
+    The one criterion measured as a rate rather than a count. Per capita was
+    rejected for equipment (it ranks hamlets first), but crime has no saturation
+    argument to stand on instead: 400 burglaries in Paris 15e and 400 in a
+    village are not the same fact.
+
+    The denominator is communes_ref's population, so every figure on the site
+    divides by the same number, and the rates are recomputed here rather than
+    read off the file, where two different denominators are in use.
+    """
+    counts = insee.by_commune(fetch()).reindex(ref.index)
+    per_1000 = counts[CRIME_COLUMNS].div(ref["population"], axis=0).mul(1000)
+
+    rates = per_1000.round(2).rename(columns=lambda name: name.replace("nb_", "taux_"))
+    # min_count: a family missing entirely means unknown, not nought.
+    rates["taux_delinquance"] = per_1000.sum(axis=1, min_count=len(CRIME_COLUMNS)).round(2)
+
+    return rates.join(counts["nb_indicateurs_estimes"])
+
+
+def metadata() -> dict:
+    """Which year the map is showing, and out of how many indicators, for the
+    popup to say so without keeping its own copy.
+    """
+    return {"securite": {"annee": YEAR, "nb_indicateurs": len(CURATED_INDICATORS)}}

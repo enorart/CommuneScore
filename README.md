@@ -128,14 +128,15 @@ The grouping comes from IGN's data.
 
 ```
 etl/
-  common/
-    cache.py            # cached_download(): fetch each source file once into data/raw/
-    communes_ref.py     # reference table every source joins onto (geometry, population, EPCI)
-    neighbourhood.py    # re-count a metric over a commune + everything within N km
-  sources/              # one module per data source, each returning a frame keyed by code_insee
+  common/                 # shared business logic and utilities, no source knows any other
+    cache.py              # cached_download(): fetch each source file once into data/raw/
+    insee.py              # INSEE codes, the Île-de-France filter, polars -> pandas by commune
+    communes_ref.py       # reference table every source joins onto (geometry, population, EPCI)
+    neighbourhood.py      # re-count a metric over a commune + everything within N km
+  sources/                # one module per data source, all the same shape (see its __init__.py)
     rent.py  bpe.py  idfm_gares.py  ssmsi.py
     corine.py  airparif.py  ips_schools.py     # stubs, not yet implemented
-  pipeline.py           # joins every source -> data/processed/communes_scores.geojson
+  pipeline.py             # orchestration only: ref + every source -> communes_scores.geojson
 
 web/
   index.html  style.css
@@ -177,8 +178,16 @@ Output: `data/processed/communes_scores.geojson` — **1 285 features, 60 proper
 Three conventions hold the pipeline together:
 
 1. **The reference table comes first.** `etl/common/communes_ref.py` builds one GeoDataFrame indexed by `code_insee` (name, population, geometry, département, intercommunalité) from IGN's AdminExpress. Every other source left-joins onto it, so the row count never drifts.
-2. **One module per source, one `fetch()` each,** returning a frame keyed by `code_insee`. Adding a source is adding a module and one join.
-3. **Raw values only.** The pipeline never scores anything. 
+2. **Every source module has the same shape.** No source imports another, and `pipeline.py` knows nothing about any source's data: it builds the reference table, asks each source for its columns and joins them. Adding a source is writing one module and adding it to `SOURCES`.
+3. **Raw values only.** The pipeline never scores anything.
+
+The contract, documented in `etl/sources/__init__.py`:
+
+| | |
+|---|---|
+| `fetch()` | The source's own data, in the source's own shape, downloaded once through `common.cache` and parsed. Nothing project specific. |
+| `build(ref)` | The columns this source contributes, indexed by `code_insee`. `ref` is the reference table, for sources needing its geometry (neighbourhood reach) or its population (rates). All source specific curation and derivation lives here. |
+| `metadata()` | Optional. Choices the frontend has to state back to the user, merged into the GeoJSON's `metadata` member. |
 
 Every download goes through `cached_download(url, filename)` in `etl/common/cache.py`, which fetches into `data/raw/` once and never again. **Delete one file in `data/raw/` to force a re-fetch of just that source.**
 
