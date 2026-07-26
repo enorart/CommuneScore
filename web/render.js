@@ -54,10 +54,29 @@ const CRIME_FAMILIES = [
   { key: "taux_atteintes_biens", label: "Atteintes aux biens", scored: true },
 ];
 
-// One row per entry, each reading a raw column and sharing a unit.
+// Airparif models four pollutants. Only NO₂ and PM2.5 build indice_oms, the
+// two with the clearest health basis; PM10 is shown because it is the figure
+// people know, and O₃ because it is the one that does not follow the others.
+// Ozone is published as a count of bad days, not a concentration, so it
+// carries its own unit.
+const AIR_POLLUTANTS = [
+  { key: "no2", label: "NO₂", scored: true },
+  { key: "pm25", label: "PM2.5", scored: true },
+  { key: "pm10", label: "PM10" },
+  // The unit carries the threshold rather than the label: the label column
+  // sizes the whole table, and widening it squeezes the score bars flat.
+  { key: "o3_jours_depassement", label: "O₃", unit: "jours > 120 µg/m³" },
+];
+
+// One row per entry, each reading a raw column and sharing a unit unless it
+// names its own.
 function unitRows(entries, unit) {
   return (props) =>
-    entries.map(({ key, label, scored }) => ({ label, scored, value: formatValue(props[key], unit) }));
+    entries.map(({ key, label, scored, unit: own }) => ({
+      label,
+      scored,
+      value: formatValue(props[key], own ?? unit),
+    }));
 }
 
 // Criteria whose single number hides something worth naming. `scored` marks the
@@ -66,6 +85,7 @@ function unitRows(entries, unit) {
 const DETAILS = {
   loyer: unitRows(RENT_TYPOLOGIES, "€/m²"),
   securite: unitRows(CRIME_FAMILIES, "‰"),
+  air: unitRows(AIR_POLLUTANTS, "µg/m³"),
 
   transport: (props) => [
     { label: "Gares dans la commune", value: shorten(props.gares), wrap: true },
@@ -177,9 +197,13 @@ export function popupHtml(props, { weights, scope, scopeCount, meta }) {
         ${numberFormat.format(props[`population_${NEARBY_RADIUS_KM}km`])} habitants.
         Sécurité : faits enregistrés en ${meta.securite.annee} sur le territoire de la
         commune, pour 1 000 habitants.${securityFootnote(props, meta.securite.nb_indicateurs)}
+        Qualité de l'air : moyennes annuelles ${meta.air.annee} modélisées par Airparif,
+        moyennées sur la superficie de la commune ; l'indice rapporte le NO₂ et les
+        PM2.5 aux seuils recommandés par l'OMS (${meta.air.seuils_oms.no2} et
+        ${meta.air.seuils_oms.pm25} µg/m³), donc 1 vaut « au niveau recommandé ».
         Les scores des équipements suivent une échelle logarithmique : passer de 1
-        à 10 équipements pèse plus que de 300 à 3 000 ; le loyer et la sécurité,
-        des rangs. Tous sont relatifs aux
+        à 10 équipements pèse plus que de 300 à 3 000 ; le loyer, la sécurité et
+        l'air, des rangs. Tous sont relatifs aux
         ${numberFormat.format(scopeCount)} communes de « ${scope.label} » : un 100 est le meilleur de cette sélection, pas de la région.
       </p>
     </div>

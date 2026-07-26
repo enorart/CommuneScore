@@ -32,7 +32,7 @@ That information exists. INSEE, ANIL, Île-de-France Mobilités and the Ministry
 1. **Pick a comparison zone.** Top of the sidebar. All of Île-de-France, the petite or grande couronne, one of the 8 départements, or one of the 63 intercommunalités. This matters more than it looks : see [Scope](#scope-what-a-score-is-relative-to).
 2. **Set your priorities.** One slider per criterion. Sliding to **0 removes the criterion entirely** rather than scoring it zero, so "I don't have children and I don't care about schools" is possible.
 3. **Read the map.** Darker = better fit for *your* weights. The ranking beneath the sliders lists the best communes, each with a small "spine" of bars showing its profile at a glance : a commune strong everywhere and one strong in two things can share the same composite score.
-4. **Click a commune.** The popup breaks the score down criterion by criterion, showing the raw value next to each score. Rent, transport and security rows expand for detail.
+4. **Click a commune.** The popup breaks the score down criterion by criterion, showing the raw value next to each score. Rent, transport, security and air-quality rows expand for detail.
 5. **Zoom in on a zone.** In the popup, the commune's département and intercommunalité are clickable : comparing 30 neighbouring communes tells you far more than comparing 1 285.
 
 ---
@@ -41,14 +41,15 @@ That information exists. INSEE, ANIL, Île-de-France Mobilités and the Ministry
 
 All sources are French open data, published per commune.
 
-| Criterion | Source | Year | Licence |
-|---|---|---|---|
-| Boundaries, population, intercommunalités | IGN — ADMIN EXPRESS COG, via the Géoplateforme WFS | 2025 | Licence Ouverte / Etalab 2.0 |
-| Rent (€/m²) | ANIL — Carte des loyers, via data.gouv.fr | 2025 | Licence Ouverte / Etalab 2.0 |
-| Shops, health, schools, childcare, sport, culture | INSEE — Base permanente des équipements (BPE) | 2025 | Licence Ouverte / Etalab 2.0 |
-| Rail stations and lines | Île-de-France Mobilités — Gares et stations du réseau ferré | 2025 | Licence Ouverte v2.0 (Etalab) |
-| Recorded crime | SSMSI — Base statistique communale de la délinquance | 2025 | **ODbL v2** |
-| *Green space, air quality* | *CORINE Land Cover, Airparif* | — | *planned, not yet wired in* |
+| Criterion | Source                                                                                                   | Year | Licence |
+|---|----------------------------------------------------------------------------------------------------------|---|---|
+| Boundaries, population, intercommunalités | IGN — ADMIN EXPRESS COG, via the Géoplateforme WFS (Web Feature Service, vectorial datas)                | 2025 | Licence Ouverte / Etalab 2.0 |
+| Rent (€/m²) | ANIL — Carte des loyers, via data.gouv.fr                                                                | 2025 | Licence Ouverte / Etalab 2.0 |
+| Shops, health, schools, childcare, sport, culture | INSEE — Base permanente des équipements (BPE) via data.gouv.fr                                           | 2025 | Licence Ouverte / Etalab 2.0 |
+| Rail stations and lines | Île-de-France Mobilités — Gares et stations du réseau ferré via data.gouve.fr                            | 2025 | Licence Ouverte v2.0 (Etalab) |
+| Recorded crime | SSMSI — Base statistique communale de la délinquance via data.gouv.fr                                    | 2025 | **ODbL v2** |
+| Air quality | Airparif — Concentrations moyennes annuelles modélisées, via its WCS (Web Coverage Service, raster datas | 2025 | **ODbL** |
+| *Green space* | *CORINE Land Cover*                                                                                      | — | *planned, not yet wired in* |
 
 Attribution is surfaced in the app behind the map's ℹ️ button, alongside the basemap's own credits (OpenFreeMap / OpenStreetMap).
 
@@ -96,11 +97,24 @@ Only **9 of SSMSI's 15 indicators** feed it, in two families shown separately in
 | Vols sans violence contre des personnes | Highest-volume class, and the one whose denominator is most wrong: it hits the daytime population. Paris 1er reads 312 ‰ on 15 114 residents.                                  |
 | Violences physiques intrafamiliales | Happen within the household : not a risk the neighbourhood confers on someone moving there.                                                                                    |
 
-Two caveats worth knowing when reading this layer:
+Note:
 
 - **Place of commission, not of residence.** A commune with a station, a mall or an office district absorbs offences against people who do not live there, and reads worse than a resident experiences.
 - **Statistical secrecy, and it is not rare.** SSMSI withholds any count below 5 faits over 3 successive years, publishing the mean over its département's withheld communes instead. The median Île-de-France commune has **5 of the 9 indicators** filled that way. `nb_indicateurs_estimes` records how many, and the popup says so.
 - **Small communes are noisy.** Because the rate is computed over the commune alone — unlike every other criterion, which is smoothed over 1 km — a village of 100 inhabitants swings between the extremes of the scale on a handful of faits. Eight communes of 32–155 inhabitants score a perfect 100 on genuinely published zeros, and the same arithmetic puts Charmont (32 hab.) near the bottom at 250 ‰. The département medians are sound (Paris 35.8 ‰, Seine-Saint-Denis 30.0 ‰, Yvelines 17.7 ‰); it is the rural fringe that speckles. Smoothing security over 1 km like everything else is the obvious fix and an open question.
+
+#### Air quality
+
+Airparif models Île-de-France as a continuous surface at 6.25 m, so unlike every other source this one knows nothing about communes: `indice_oms` is the **mean of that surface over the commune's own polygon**, and the criterion is its inverted percentile rank, like rent and security.
+
+The index is a **ratio to a health guideline, not a concentration**: the mean of NO₂ / 10 and PM2.5 / 5, the WHO 2021 annual guideline values. So 1 means "at the level the WHO recommends" and Île-de-France runs from 0.98 in the Montois to 2.38 in the 17e. Raw µg/m³ could not be combined at all — 10 of NO₂ and 10 of PM2.5 are not the same news.
+
+Airparif publishes four pollutants and all four are in the popup, but only two are scored. PM10 is the same particles as PM2.5 with a wider cutoff, so scoring both would weight particles twice against NO₂. O₃ is not scored and is **not a concentration**: Airparif publishes ozone as the number of days above 120 µg/m³ over 8 hours.
+
+Note:
+
+- **Area-weighted, not population-weighted.** Nothing publishes population on a grid, so a commune's parkland counts as much as its town centre. Large rural communes are flattered, and a commune with a dense core on the A86 and a forest behind it reads better than its residents experience.
+- **One number for a territory the gradient cuts across.** A commune's périphérique edge can read twice its parkland edge. The criterion answers *how polluted is this commune*, not *how polluted is this street*.
 
 ### Scoring: how criteria become one score
 
@@ -137,8 +151,8 @@ etl/
     neighbourhood.py      # re-count a metric over a commune + everything within N km
     logs.py               # setup python logger for etl 
   sources/                # one module per data source, all the same shape (see its __init__.py)
-    rent.py  bpe.py  idfm_gares.py  ssmsi.py
-    corine.py  airparif.py  ips_schools.py     # stubs, not yet implemented
+    rent.py  bpe.py  idfm_gares.py  ssmsi.py  airparif.py
+    corine.py  ips_schools.py                  # stubs, not yet implemented
   pipeline.py             # orchestration only: ref + every source -> communes_scores.geojson
 
 web/
@@ -176,7 +190,7 @@ uv sync
 uv run python -m etl.pipeline
 ```
 
-Output: `data/processed/communes_scores.geojson` — **1 285 features, 60 properties, ~4 MB**, committed to the repo so the frontend works without running the ETL. The first run downloads ~90 MB into `data/raw/`.
+Output: `data/processed/communes_scores.geojson` — **1 285 features, 65 properties, ~4.2 MB**, committed to the repo so the frontend works without running the ETL. The first run downloads ~140 MB into `data/raw/`.
 
 Three conventions hold the pipeline together:
 
@@ -232,13 +246,13 @@ Three implementation notes that are load-bearing:
 
 Code: **MIT**. Do what you like with it.
 
-Data: the generated `communes_scores.geojson` is a derived database of SSMSI's crime statistics, which are **ODbL v2**. ODbL is share-alike, so that file and anything derived from it must be redistributed under ODbL with attribution to the sources listed above. .
+Data: the generated `communes_scores.geojson` is a derived database of SSMSI's crime statistics (**ODbL v2**) and of Airparif's modelled concentrations (**ODbL**). ODbL is share-alike, so that file and anything derived from it must be redistributed under ODbL with attribution to the sources listed above.
 
 ### What's next ?
 
 Possible improvments:
 
-1. **The environment criterion** : `etl/sources/corine.py` (green-space share from CORINE Land Cover) and `etl/sources/airparif.py` (yearly average NO₂ / PM2.5).
+1. **Green space** : `etl/sources/corine.py`, the share of green and natural land from CORINE Land Cover, to sit alongside air quality as the second environment criterion.
 2. **School quality** via the IPS index, as an enrichment on top of raw school counts.
 3. **Extending beyond Île-de-France** : replacing the IDFM rail source with a national equivalent and/or local equivalent for cities like Lyon, Marseille, Toulouse...
 4. Dynamic door-to-door commute time from the centroid of a commune to a chosen place. Need dynamic API call and a web server, not a static website anymore.

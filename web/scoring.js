@@ -62,14 +62,16 @@ function percentileRank(values, { invert = false } = {}) {
 }
 
 // criterion key -> how its score is built. Counts are scored on a log scale;
-// the two exceptions are the two criteria that are not counts. Rent is a price
-// and security a rate, so saturation has nothing to say about either, and for
-// both of them less is better — hence the inverted rank. Rank rather than
-// min-max because both have long tails that would otherwise flatten everything
-// else against them.
+// the exceptions are the criteria that are not counts. Rent is a price,
+// security a rate and air a ratio to a health guideline, so saturation has
+// nothing to say about any of them, and for all three less is better : inverted.
+// Rank rather than min-max because each has a long tail
+// that would otherwise flatten everything else against it: for air it is the
+// handful of communes the périphérique runs through.
 const SCORERS = {
   loyer: { scale: percentileRank, invert: true },
   securite: { scale: percentileRank, invert: true },
+  air: { scale: percentileRank, invert: true },
 };
 
 for (const { key } of CRITERIA) {

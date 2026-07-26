@@ -10,4 +10,5 @@ dependencies = [
     "requests>=2.32",
     "pyarrow>=17.0",
     "polars>=1.43.0",
+    "rasterio>=1.4",
 ]

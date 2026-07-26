@@ -30,8 +30,9 @@ const SOURCE_ATTRIBUTION = [
   'Équipements : <a href="https://www.insee.fr/fr/statistiques/8217527" target="_blank" rel="noopener">INSEE BPE 2025</a>',
   'Réseau ferré : <a href="https://data.iledefrance-mobilites.fr/explore/dataset/emplacement-des-gares-idf/" target="_blank" rel="noopener">Île-de-France Mobilités</a>',
   'Contours et population : <a href="https://geoservices.ign.fr/adminexpress" target="_blank" rel="noopener">IGN ADMIN EXPRESS COG</a>',
-  // The one source not under Licence Ouverte, so it carries its own licence.
+  // The two sources not under Licence Ouverte, so they carry their own.
   'Délinquance : <a href="https://www.data.gouv.fr/datasets/bases-statistiques-communale-departementale-et-regionale-de-la-delinquance-enregistree-par-la-police-et-la-gendarmerie-nationales" target="_blank" rel="noopener">SSMSI 2025</a> (ODbL v2)',
+  `Qualité de l'air : <a href="https://www.data.gouv.fr/datasets/concentrations-moyennes-annuelles-des-polluants-reglementes-en-ile-de-france" target="_blank" rel="noopener">Airparif 2025</a> (ODbL)`,
   "Licence Ouverte / Etalab 2.0",
 ];
 

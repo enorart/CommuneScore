@@ -83,6 +83,15 @@ export const CRITERIA = [
     defaultWeight: 5,
     note: "Atteintes aux personnes et aux biens, hors stupéfiants",
   },
+  {
+    key: "air",
+    label: "Qualité de l'air",
+    property: "score_air",
+    raw: "indice_oms",
+    unit: "× le seuil OMS",
+    defaultWeight: 2,
+    note: "NO₂ et PM2.5, moyennes annuelles modélisées",
+  },
 ];
 
 // initialisation
