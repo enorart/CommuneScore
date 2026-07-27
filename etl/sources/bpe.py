@@ -14,9 +14,9 @@ Three things about the file shape drive the filtering below:
     level. Keeping only leaf FACILITY_TYPE rows avoids counting them twice.
 
 Known limitations, worth remembering before scoring on these numbers:
-  - counts stop at the commune border, and BPE publishes no coordinates, so
-    neighbourhood.aggregate can only reach whole neighbouring communes rather
-    than measure to the equipments themselves.
+  - counts stop at the commune border, so a commune next door to a town centre
+    reads as having nothing. See build() for why reaching past the border was
+    tried and removed.
   - equipments are counted, not their capacity (size).
 """
 
@@ -27,7 +27,7 @@ import geopandas as gpd
 import pandas as pd
 import polars as pl
 
-from etl.common import insee, logs, neighbourhood
+from etl.common import insee, logs
 from etl.common.cache import cached_download
 
 logger = logging.getLogger(__name__)
@@ -144,17 +144,14 @@ def fetch() -> pl.DataFrame:
 
 
 def build(ref: gpd.GeoDataFrame) -> pd.DataFrame:
-    """Counts inside the commune, and counts within reach of it.
-
-    What matters for choosing where to live is how much is reachable, not how
-    much sits inside the commune's own borders, so every criterion is counted
-    again over the neighbourhood. The neighbourhood population rides along: it
-    is the figure those counts are read against ("X equipements, soit Y
-    habitants").
+    """Counts inside the commune, and only inside it.
     """
     counts = insee.by_commune(fetch()).reindex(ref.index)
-    nearby = neighbourhood.aggregate(ref, counts[CRITERION_COLUMNS])
 
-    equipment = counts.join(nearby.astype("int64"))
-    logger.info("built %s", logs.shape(equipment))
-    return equipment
+    logger.info(
+        "built %s, %d communes with no shop of their own, %d with no health equipment",
+        logs.shape(counts),
+        int((counts["nb_commerces"] == 0).sum()),
+        int((counts["nb_sante"] == 0).sum()),
+    )
+    return counts

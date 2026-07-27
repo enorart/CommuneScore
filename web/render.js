@@ -215,9 +215,11 @@ export function popupHtml(props, { weights, scope, scopeCount, meta }) {
       <div class="popup-criteria">${columns}</div>
 
       <p class="popup-footnote">
-        Loyer : moyenne appartement et maison, en €/m². Équipements accessibles
-        dans un rayon de ${NEARBY_RADIUS_KM} km, soit
-        ${numberFormat.format(props[`population_${NEARBY_RADIUS_KM}km`])} habitants.
+        Loyer : moyenne appartement et maison, en €/m². Équipements recensés sur
+        le territoire de la commune seule. 
+        Les transports font exception, l'unique source publiant
+        les coordonnées de ses points : lignes desservies à moins de
+        ${NEARBY_RADIUS_KM} km.
         Sécurité : faits enregistrés en ${meta.securite.annee} sur le territoire de la
         commune, pour 1 000 habitants.${securityFootnote(props, meta.securite.nb_indicateurs)}
         Qualité de l'air : moyennes annuelles ${meta.air.annee} modélisées par Airparif,

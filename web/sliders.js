@@ -2,8 +2,11 @@
 // user controls. app.js reads both to recolor the map and rebuild the
 // ranking on every slider move.
 
-// Radius the equipment counts were aggregated over. Must match
-// NEARBY_SUFFIX in etl/pipeline.py => the column names.
+// Radius the rail network is measured over, and the only criterion still using
+// one: transport is the one source publishing real coordinates, so it can
+// measure to the stations themselves. Must match neighbourhood.DEFAULT_RADIUS_KM
+// in the ETL => the column names. app.js warns if the two drift apart.
+// Equipment counts are the commune's own, see etl/sources/bpe.py.
 export const NEARBY_RADIUS_KM = 1;
 
 const MAX_WEIGHT = 6;
@@ -21,48 +24,48 @@ export const CRITERIA = [
     key: "commerces",
     label: "Commerces",
     property: "score_commerces",
-    raw: `nb_commerces_${NEARBY_RADIUS_KM}km`,
-    unit: `à ${NEARBY_RADIUS_KM} km`,
+    raw: "nb_commerces",
+    unit: "dans la commune",
     defaultWeight: 2,
   },
   {
     key: "sante",
     label: "Santé",
     property: "score_sante",
-    raw: `nb_sante_${NEARBY_RADIUS_KM}km`,
-    unit: `à ${NEARBY_RADIUS_KM} km`,
+    raw: "nb_sante",
+    unit: "dans la commune",
     defaultWeight: 2,
   },
   {
     key: "enseignement",
     label: "Écoles",
     property: "score_enseignement",
-    raw: `nb_enseignement_${NEARBY_RADIUS_KM}km`,
-    unit: `à ${NEARBY_RADIUS_KM} km`,
+    raw: "nb_enseignement",
+    unit: "dans la commune",
     defaultWeight: 0,
   },
   {
     key: "petite_enfance",
     label: "Petite enfance",
     property: "score_petite_enfance",
-    raw: `nb_petite_enfance_${NEARBY_RADIUS_KM}km`,
-    unit: `à ${NEARBY_RADIUS_KM} km`,
+    raw: "nb_petite_enfance",
+    unit: "dans la commune",
     defaultWeight: 0,
   },
   {
     key: "sports",
     label: "Sport",
     property: "score_sports",
-    raw: `nb_sports_${NEARBY_RADIUS_KM}km`,
-    unit: `à ${NEARBY_RADIUS_KM} km`,
+    raw: "nb_sports",
+    unit: "dans la commune",
     defaultWeight: 1,
   },
   {
     key: "culture",
     label: "Culture",
     property: "score_culture",
-    raw: `nb_culture_${NEARBY_RADIUS_KM}km`,
-    unit: `à ${NEARBY_RADIUS_KM} km`,
+    raw: "nb_culture",
+    unit: "dans la commune",
     defaultWeight: 0,
   },
   {

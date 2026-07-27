@@ -59,19 +59,15 @@ The guiding rule everywhere below: **the ETL produces raw values, the browser tu
 
 #### Facilities : shops, health, schools, childcare, sport, culture
 
-Counted, then scored in two steps.
-
-**1. Count over a 1 km neighbourhood, not the commune.** Administrative borders are invisible to a resident: for example, a bakery 500 m away in the next commune still counts. Each criterion is re-counted over the commune plus everything within 1 km, giving `nb_commerces_1km`, `nb_sante_1km` and so on (`etl/common/neighbourhood.py`).
-
-**2. Scale logarithmically.** `log1p(count)`, min-max scaled to 0–100. The log is the whole point: going from 1 reachable bakery to 10 changes your daily life; going from 300 to 3 000 does not.
+Counted **inside the commune**, then scaled logarithmically: `log1p(count)`, min-max to 0–100. The log is the whole point: going from 1 bakery to 10 changes your daily life; going from 300 to 3 000 does not.
 
 The 7 BPE *domaines* are too coarse to score on directly, so the criteria are cut from its 28 *sous-domaines* instead. Excluded on purpose: domaine A (86 % of it is builders and hairdressers), tourism, outdoor sports sites, universities and adult education, and social services (which are not medical access). Full reasoning at the top of `etl/sources/bpe.py`.
 
 #### Transport
 
-Same two steps, with two differences.
+Same log scale, and **the one criterion measured beyond the commune's border** — because it is the one source that publishes coordinates, so "within 1 km" can mean what it says.
 
-It counts **distinct lines reachable, not stations**. Three stops on the same RER get you to the same places; three different lines do not. It measures distance **to the stations themselves**, not to neighbouring communes, because Île-de-France Mobilités publishes real coordinates. 
+It counts **distinct lines reachable, not stations**. Three stops on the same RER get you to the same places; three different lines do not. It measures distance **to the stations themselves** (`neighbourhood.points_within`).
 
 > **Why not BPE?** BPE has a transport domain, and it is unusable. 54 895 of its 55 328 Île-de-France rows are taxi-VTC company registrations, and the stations it does carry are SNCF/RER only, no métro, no tram. IDFM's network has 996 stations across 50 lines, every mode, with their names.
 
@@ -101,7 +97,7 @@ Note:
 
 - **Place of commission, not of residence.** A commune with a station, a mall or an office district absorbs offences against people who do not live there, and reads worse than a resident experiences.
 - **Statistical secrecy, and it is not rare.** SSMSI withholds any count below 5 faits over 3 successive years, publishing the mean over its département's withheld communes instead. The median Île-de-France commune has **5 of the 9 indicators** filled that way. `nb_indicateurs_estimes` records how many, and the popup says so.
-- **Small communes are noisy.** Because the rate is computed over the commune alone — unlike every other criterion, which is smoothed over 1 km — a village of 100 inhabitants swings between the extremes of the scale on a handful of faits. Eight communes of 32–155 inhabitants score a perfect 100 on genuinely published zeros, and the same arithmetic puts Charmont (32 hab.) near the bottom at 250 ‰. The département medians are sound (Paris 35.8 ‰, Seine-Saint-Denis 30.0 ‰, Yvelines 17.7 ‰); it is the rural fringe that speckles. Smoothing security over 1 km like everything else is the obvious fix and an open question.
+- **Small communes are noisy.** A village of 100 inhabitants swings between the extremes of the scale on a handful of faits. 
 
 #### Air quality
 
@@ -169,7 +165,7 @@ etl/
     cache.py              # cached_download(): fetch each source file once into data/raw/
     insee.py              # INSEE codes, the Île-de-France filter, polars -> pandas by commune
     communes_ref.py       # reference table every source joins onto (geometry, population, EPCI)
-    neighbourhood.py      # re-count a metric over a commune + everything within N km
+    neighbourhood.py      # reach past a commune's border, for sources with coordinates
     logs.py               # setup python logger for etl 
   sources/                # one module per data source, all the same shape (see its __init__.py)
     rent.py  bpe.py  idfm_gares.py  ssmsi.py  airparif.py  mos.py
@@ -211,7 +207,7 @@ uv sync
 uv run python -m etl.pipeline
 ```
 
-Output: `data/processed/communes_scores.geojson` — **1 285 features, 70 properties, ~4.4 MB**, committed to the repo so the frontend works without running the ETL. The first run downloads ~155 MB into `data/raw/`.
+Output: `data/processed/communes_scores.geojson` — **1 285 features, 63 properties, ~4.2 MB**, committed to the repo so the frontend works without running the ETL. The first run downloads ~155 MB into `data/raw/`.
 
 Three conventions hold the pipeline together:
 
