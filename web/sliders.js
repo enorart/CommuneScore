@@ -92,6 +92,15 @@ export const CRITERIA = [
     defaultWeight: 2,
     note: "NO₂ et PM2.5, moyennes annuelles modélisées",
   },
+  {
+    key: "espaces_verts",
+    label: "Espaces verts",
+    property: "score_espaces_verts",
+    raw: "pct_espaces_verts",
+    unit: "% de la commune",
+    defaultWeight: 2,
+    note: "Bois, parcs et jardins publics, hors terres agricoles",
+  },
 ];
 
 // initialisation

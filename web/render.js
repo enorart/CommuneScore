@@ -68,6 +68,16 @@ const AIR_POLLUTANTS = [
   { key: "o3_jours_depassement", label: "O₃", unit: "jours > 120 µg/m³" },
 ];
 
+// The two halves of the score, then the two kinds of green it deliberately
+// leaves out — so the popup answers "why is this commune not green" as well as
+// "how green is it". A Beauce commune reads 0.2 % scored against 96 % agricole.
+const GREEN_FAMILIES = [
+  { key: "pct_foret", label: "Bois, nature", scored: true },
+  { key: "pct_parcs", label: "Parcs, jardins", scored: true },
+  { key: "pct_agricole", label: "Agricole" },
+  { key: "pct_jardins_prives", label: "Jardins privés" },
+];
+
 // One row per entry, each reading a raw column and sharing a unit unless it
 // names its own.
 function unitRows(entries, unit) {
@@ -86,6 +96,9 @@ const DETAILS = {
   loyer: unitRows(RENT_TYPOLOGIES, "€/m²"),
   securite: unitRows(CRIME_FAMILIES, "‰"),
   air: unitRows(AIR_POLLUTANTS, "µg/m³"),
+  // Bare "%" here: the criterion row above already says what the share is of,
+  // and repeating it on all four rows only widens the column.
+  espaces_verts: unitRows(GREEN_FAMILIES, "%"),
 
   transport: (props) => [
     { label: "Gares dans la commune", value: shorten(props.gares), wrap: true },
@@ -211,6 +224,10 @@ export function popupHtml(props, { weights, scope, scopeCount, meta }) {
         moyennées sur la superficie de la commune ; l'indice rapporte le NO₂ et les
         PM2.5 aux seuils recommandés par l'OMS (${meta.air.seuils_oms.no2} et
         ${meta.air.seuils_oms.pm25} µg/m³), donc 1 vaut « au niveau recommandé ».
+        Espaces verts : part de la surface de la commune occupée en
+        ${meta.espaces_verts.annee} par des bois, espaces naturels, parcs et jardins
+        publics. Les terres agricoles et les jardins privés sont affichés mais non
+        comptés : verts sans être accessibles.
         Les scores des équipements suivent une échelle logarithmique : passer de 1
         à 10 équipements pèse plus que de 300 à 3 000 ; le loyer, la sécurité et
         l'air, des rangs. Tous sont relatifs aux

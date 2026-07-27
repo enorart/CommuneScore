@@ -49,7 +49,7 @@ All sources are French open data, published per commune.
 | Rail stations and lines | Île-de-France Mobilités — Gares et stations du réseau ferré via data.gouve.fr                            | 2025 | Licence Ouverte v2.0 (Etalab) |
 | Recorded crime | SSMSI — Base statistique communale de la délinquance via data.gouv.fr                                    | 2025 | **ODbL v2** |
 | Air quality | Airparif — Concentrations moyennes annuelles modélisées, via its WCS (Web Coverage Service, raster datas | 2025 | **ODbL** |
-| *Green space* | *CORINE Land Cover*                                                                                      | — | *planned, not yet wired in* |
+| Green space | L'Institut Paris Region — Mode d'occupation du sol (MOS), 79 postes, via data.iledefrance.fr             | 2025 | Licence Ouverte / Etalab 2.0 |
 
 Attribution is surfaced in the app behind the map's ℹ️ button, alongside the basemap's own credits (OpenFreeMap / OpenStreetMap).
 
@@ -116,6 +116,27 @@ Note:
 - **Area-weighted, not population-weighted.** Nothing publishes population on a grid, so a commune's parkland counts as much as its town centre. Large rural communes are flattered, and a commune with a dense core on the A86 and a forest behind it reads better than its residents experience.
 - **One number for a territory the gradient cuts across.** A commune's périphérique edge can read twice its parkland edge. The criterion answers *how polluted is this commune*, not *how polluted is this street*.
 
+#### Green space
+
+`pct_espaces_verts` is the **share of the commune's own surface** under woods, natural land, parks and public gardens. Not a count, not a rate against population; it is scored on a plain min-max: it is already a bounded 0–100 figure.
+
+**6 of the MOS's 79 postes are counted**, split into the two families shown separately in the popup: `pct_foret` (bois ou forêts, espaces ouverts à végétation arbustive ou herbacée, berges) and `pct_parcs` (parcs ou jardins publics, autres espaces verts, jardins familiaux). Left out, each for a reason:
+
+| Excluded | Why |
+|---|---|
+| Terres labourées, prairies, vergers, maraîchage (5 886 km²) | Green on a map, not amenity: private, fenced, no path through it. Counting them would turn the criterion into *how rural is this commune* and let the grande couronne sweep the ranking on arable land alone. Shown in the popup as `pct_agricole`, unscored — Beauce communes read 0.2 % green against 96 % agricole. |
+| Jardins de l'habitat (186 km²) | Private. It also tracks detached housing almost exactly, so counting it would only re-score the pavillonnaire. Shown as `pct_jardins_prives`, unscored. |
+| Surfaces engazonnées (272 km²) | The largest judgement call here, hence stating it: roadside and housing-estate lawn is visible green, but not somewhere anyone goes. |
+| Terrains de sport, tennis, golfs, hippodromes, camping | Ticketed or members-only, and the BPE *sport* criterion already counts the public ones. |
+| Cimetières | Genuinely green and genuinely open. Nobody chooses a commune for its cemetery. |
+| Eau fermée, cours d'eau | Water is amenity but it is not green space, and *berges* already carries the walkable edge of it. |
+
+Note:
+
+- **Presence, never right of access.** The MOS maps what the ground is, not who may walk on it.
+- **The commune alone**.
+- **Where the green sits inside the commune is not measured.** One block of forest at the far edge reads like the same area spread over ten squares.
+
 ### Scoring: how criteria become one score
 
 Each criterion is scaled to 0–100 over the communes currently in scope. The **composite** is then a plain weighted average of those scores, using the slider weights, rebuilt on every slider move. Criteria at weight 0 drop out of the average rather than contributing a zero.
@@ -151,8 +172,8 @@ etl/
     neighbourhood.py      # re-count a metric over a commune + everything within N km
     logs.py               # setup python logger for etl 
   sources/                # one module per data source, all the same shape (see its __init__.py)
-    rent.py  bpe.py  idfm_gares.py  ssmsi.py  airparif.py
-    corine.py  ips_schools.py                  # stubs, not yet implemented
+    rent.py  bpe.py  idfm_gares.py  ssmsi.py  airparif.py  mos.py
+    ips_schools.py                             # stub, not yet implemented
   pipeline.py             # orchestration only: ref + every source -> communes_scores.geojson
 
 web/
@@ -190,7 +211,7 @@ uv sync
 uv run python -m etl.pipeline
 ```
 
-Output: `data/processed/communes_scores.geojson` — **1 285 features, 65 properties, ~4.2 MB**, committed to the repo so the frontend works without running the ETL. The first run downloads ~140 MB into `data/raw/`.
+Output: `data/processed/communes_scores.geojson` — **1 285 features, 70 properties, ~4.4 MB**, committed to the repo so the frontend works without running the ETL. The first run downloads ~155 MB into `data/raw/`.
 
 Three conventions hold the pipeline together:
 
@@ -252,11 +273,10 @@ Data: the generated `communes_scores.geojson` is a derived database of SSMSI's c
 
 Possible improvments:
 
-1. **Green space** : `etl/sources/corine.py`, the share of green and natural land from CORINE Land Cover, to sit alongside air quality as the second environment criterion.
-2. **School quality** via the IPS index, as an enrichment on top of raw school counts.
-3. **Extending beyond Île-de-France** : replacing the IDFM rail source with a national equivalent and/or local equivalent for cities like Lyon, Marseille, Toulouse...
-4. Dynamic door-to-door commute time from the centroid of a commune to a chosen place. Need dynamic API call and a web server, not a static website anymore.
-5. Adding qualitative review from locals / Fetching with authorisation some website about quality of life in a commune or district.
+1. **School quality** via the IPS index, as an enrichment on top of raw school counts.
+2. **Extending beyond Île-de-France** : replacing the IDFM rail source with a national equivalent and/or local equivalent for cities like Lyon, Marseille, Toulouse...
+3. Dynamic door-to-door commute time from the centroid of a commune to a chosen place. Need dynamic API call and a web server, not a static website anymore.
+4. Adding qualitative review from locals / Fetching with authorisation some website about quality of life in a commune or district.
 
 ### On AI assistance
 

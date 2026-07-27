@@ -19,7 +19,7 @@ from pathlib import Path
 import geopandas as gpd
 
 from etl.common import communes_ref, logs, neighbourhood
-from etl.sources import airparif, bpe, idfm_gares, rent, ssmsi
+from etl.sources import airparif, bpe, idfm_gares, mos, rent, ssmsi
 
 # Named rather than __name__: this module is the entry point, so run as
 # `python -m etl.pipeline` its __name__ is "__main__".
@@ -28,9 +28,9 @@ logger = logging.getLogger("etl.pipeline")
 OUTPUT_PATH = Path(__file__).resolve().parent.parent / "data" / "processed" / "communes_scores.geojson"
 
 # Joined onto the reference table in this order, which is the order their
-# columns appear in the output. corine and ips_schools are still stubs;
-# adding one here is all that is left once its module is written.
-SOURCES = [rent, bpe, idfm_gares, ssmsi, airparif]
+# columns appear in the output. ips_schools is still a stub; adding one here is
+# all that is left once its module is written.
+SOURCES = [rent, bpe, idfm_gares, ssmsi, airparif, mos]
 
 
 def _metadata() -> dict:
