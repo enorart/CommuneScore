@@ -46,6 +46,7 @@ All sources are French open data, published per commune.
 | Boundaries, population, intercommunalités | IGN — ADMIN EXPRESS COG, via the Géoplateforme WFS (Web Feature Service, vectorial datas)                | 2025 | Licence Ouverte / Etalab 2.0 |
 | Rent (€/m²) | ANIL — Carte des loyers, via data.gouv.fr                                                                | 2025 | Licence Ouverte / Etalab 2.0 |
 | Shops, health, schools, childcare, sport, culture | INSEE — Base permanente des équipements (BPE) via data.gouv.fr                                           | 2025 | Licence Ouverte / Etalab 2.0 |
+| Social composition of schools (IPS) | Ministère de l'Éducation nationale (DEPP) — Indices de position sociale des écoles, collèges et lycées, via data.education.gouv.fr | 2024-2025 | Licence Ouverte / Etalab 2.0 |
 | Rail stations and lines | Île-de-France Mobilités — Gares et stations du réseau ferré via data.gouve.fr                            | 2025 | Licence Ouverte v2.0 (Etalab) |
 | Recorded crime | SSMSI — Base statistique communale de la délinquance via data.gouv.fr                                    | 2025 | **ODbL v2** |
 | Air quality | Airparif — Concentrations moyennes annuelles modélisées, via its WCS (Web Coverage Service, raster datas | 2025 | **ODbL** |
@@ -62,6 +63,22 @@ The guiding rule everywhere below: **the ETL produces raw values, the browser tu
 Counted **inside the commune**, then scaled logarithmically: `log1p(count)`, min-max to 0–100. The log is the whole point: going from 1 bakery to 10 changes your daily life; going from 300 to 3 000 does not.
 
 The 7 BPE *domaines* are too coarse to score on directly, so the criteria are cut from its 28 *sous-domaines* instead. Excluded on purpose: domaine A (86 % of it is builders and hairdressers), tourism, outdoor sports sites, universities and adult education, and social services (which are not medical access). Full reasoning at the top of `etl/sources/bpe.py`.
+
+#### Social composition of schools (IPS)
+
+The count above says how many schools a commune has and nothing about them. The **IPS** is the Ministry's index of the socio-professional composition of an establishment's pupils: DEPP scores each PCS and averages it over the pupils. `ips_moyen` is a **flat unweighted mean over every école, collège and lycée in the commune**, scored on a plain min-max like green space — it is an index rather than a count, so saturation has nothing to say about it, and it is near symmetric across the region (74.7 to 154.0, skew 0.01), so there is no tail for a rank to protect the rest of the scale from.
+
+Three datasets, one per level, all pinned to rentrée **2024-2025**. The popup lists each establishment with its own IPS, best first, capped at ten per level — the level's summary line carries the count and the mean over *all* of them, so the cap hides names, never the figure the score is built from.
+
+> **Why not the geolocated file on data.gouv?** [That dataset](https://www.data.gouv.fr/datasets/indices-de-position-sociale-geolocalises-des-ecoles-et-colleges-de-france-metropolitaine-et-des-drom-2) exists to attach coordinates to the UAI, and coordinates would only matter if schools were counted past the commune border, which only transport does here. It is also frozen at 2021-2022 and ODbL, where the Ministry's own three are refreshed yearly under Licence Ouverte and **already carry the code INSEE, Paris split by arrondissement**. For lycées the obvious `fr-en-ips-lycees-ap2022` is frozen at 2022-2023; `donnees-ips-lycees` carries the same figures through 2024-2025.
+
+Note:
+
+- **It is not a measure of quality.** It describes who is in the classroom, not what happens in it — not results, not teaching, not buildings. DEPP says so itself. Read as "whose children go here", which is a real thing to know and a different thing.
+- **Where an establishment sits is not where its pupils live**, and less so the older they are: a commune is the authority for its écoles, a collège serves a sector, a lycée recruits across a basin. Pooling the three accepts that.
+- **Unweighted by size.** Neither the écoles nor the collèges dataset publishes effectifs, so a 60-pupil école counts the same as a 600-pupil one.
+- **309 of the 1 285 communes have no IPS at all.** An école needs 25 CM2 pupils over five years to be given one, so maternelles have none and the smallest communes have nothing; DEPP publishes the ones below the threshold as `NS`, and 97 Île-de-France écoles read that way. Null in, null out: the criterion drops out of those communes' composite rather than scoring them badly.
+- **It is not a second way of saying "expensive".** The correlation with rent is only **+0.32**, which was the number that decided whether this criterion earned its own slider. The Yvelines villages at the top of it (Les Loges-en-Josas 154.0, Châteaufort 152.0) rent for less than half what Paris 6e does at 147.4, and the bottom of it — Grigny 74.7, Villetaneuse 76.4, Garges-lès-Gonesse 77.0 — is not the cheapest part of the region either.
 
 #### Transport
 
@@ -169,7 +186,7 @@ etl/
     logs.py               # setup python logger for etl 
   sources/                # one module per data source, all the same shape (see its __init__.py)
     rent.py  bpe.py  idfm_gares.py  ssmsi.py  airparif.py  mos.py
-    ips_schools.py                             # stub, not yet implemented
+    ips_schools.py
   pipeline.py             # orchestration only: ref + every source -> communes_scores.geojson
 
 web/
@@ -207,7 +224,7 @@ uv sync
 uv run python -m etl.pipeline
 ```
 
-Output: `data/processed/communes_scores.geojson` — **1 285 features, 63 properties, ~4.2 MB**, committed to the repo so the frontend works without running the ETL. The first run downloads ~155 MB into `data/raw/`.
+Output: `data/processed/communes_scores.geojson` — **1 285 features, 67 properties, ~4.5 MB**, committed to the repo so the frontend works without running the ETL. The first run downloads ~157 MB into `data/raw/`.
 
 Three conventions hold the pipeline together:
 
@@ -269,10 +286,9 @@ Data: the generated `communes_scores.geojson` is a derived database of SSMSI's c
 
 Possible improvments:
 
-1. **School quality** via the IPS index, as an enrichment on top of raw school counts.
-2. **Extending beyond Île-de-France** : replacing the IDFM rail source with a national equivalent and/or local equivalent for cities like Lyon, Marseille, Toulouse...
-3. Dynamic door-to-door commute time from the centroid of a commune to a chosen place. Need dynamic API call and a web server, not a static website anymore.
-4. Adding qualitative review from locals / Fetching with authorisation some website about quality of life in a commune or district.
+1. **Extending beyond Île-de-France** : replacing the IDFM rail source with a national equivalent and/or local equivalent for cities like Lyon, Marseille, Toulouse... The IPS and BPE sources are already national.
+2. Dynamic door-to-door commute time from the centroid of a commune to a chosen place. Need dynamic API call and a web server, not a static website anymore.
+3. Adding qualitative review from locals / Fetching with authorisation some website about quality of life in a commune or district.
 
 ### On AI assistance
 

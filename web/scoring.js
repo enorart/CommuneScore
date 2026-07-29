@@ -62,24 +62,20 @@ function percentileRank(values, { invert = false } = {}) {
 }
 
 // criterion key -> how its score is built. Counts are scored on a log scale;
-// the exceptions are the criteria that are not counts. Rent is a price,
-// security a rate and air a ratio to a health guideline, so saturation has
+// the exceptions are the criteria that are not counts.
+//
+// Rent is a price, security a rate and air a ratio to a health guideline, so saturation has
 // nothing to say about any of them, and for all three less is better : inverted.
 // Rank rather than min-max because each has a long tail
 // that would otherwise flatten everything else against it: for air it is the
 // handful of communes the périphérique runs through.
-//
-// Green space is the fourth exception and the only one scored upward. It is a
-// share of surface, already bounded 0-100, so the log would only compress the
-// forest communes against each other while spreading the mineral ones apart —
-// exactly backwards. Plain min-max rather than a rank because the spread is
-// real and worth keeping: 84 % of Fontainebleau under trees is a different
-// place from the 19 % of the median commune, and a rank would say only "higher".
+// Green space and IPS are the only ones scored upward.
 const SCORERS = {
   loyer: { scale: percentileRank, invert: true },
   securite: { scale: percentileRank, invert: true },
   air: { scale: percentileRank, invert: true },
   espaces_verts: { scale: minMaxScale },
+  ips: { scale: minMaxScale },
 };
 
 for (const { key } of CRITERIA) {

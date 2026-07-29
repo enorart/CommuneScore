@@ -12,6 +12,17 @@ const NO_VALUE = "—";
 const numberFormat = new Intl.NumberFormat("fr-FR");
 const scoreFormat = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
 const rawFormat = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 });
+const ipsFormat = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+// Everything else on this page is a number or a name the app controls. The
+// school names are 5 536 free text values straight out of a ministry file, and
+// they go into a template string, so they get escaped before they get there.
+function escapeHtml(text) {
+  return String(text).replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]
+  );
+}
 
 // A Paris arrondissement has twenty odd stations, enough to bury the rest of
 // the popup. The line list is left whole : that one answers "where can I get to".
@@ -21,8 +32,8 @@ function shorten(list) {
   if (!list) return "aucune";
 
   const items = list.split(", ");
-  if (items.length <= MAX_LISTED) return list;
-  return `${items.slice(0, MAX_LISTED).join(", ")} + ${items.length - MAX_LISTED} autres`;
+  const shown = items.length <= MAX_LISTED ? list : `${items.slice(0, MAX_LISTED).join(", ")} + ${items.length - MAX_LISTED} autres`;
+  return escapeHtml(shown);
 }
 
 function formatValue(value, unit) {
@@ -78,6 +89,56 @@ const GREEN_FAMILIES = [
   { key: "pct_jardins_prives", label: "Jardins privés" },
 ];
 
+// The three levels the IPS covers, each a [[nom, ips], ...] list sorted best
+// first. All three feed the score : one flat mean over every establishment, so
+// none is marked `scored` against the others.
+//
+// The ETL writes them as JSON strings, but GDAL recognises a string whose
+// content parses as JSON and writes it back out as a real array, so the
+// property arrives already parsed. Read both shapes rather than depend on
+// which GDAL is installed. Communes with none of a level carry "".
+const IPS_LEVELS = [
+  { key: "ecoles_ips", label: "Écoles" },
+  { key: "colleges_ips", label: "Collèges" },
+  { key: "lycees_ips", label: "Lycées" },
+];
+
+// Paris 20e has 47 écoles : enough to bury the rest of the popup, the same
+// reason MAX_LISTED exists for stations. The level's own summary row carries
+// the count and the mean over all of them, so the cap hides names, never the
+// figure the score is built from.
+const MAX_SCHOOLS = 10;
+
+function schoolList(value) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : JSON.parse(value);
+}
+
+function ipsRows(props) {
+  const rows = [];
+
+  for (const { key, label } of IPS_LEVELS) {
+    const schools = schoolList(props[key]);
+    if (schools.length === 0) continue;
+
+    const mean = schools.reduce((total, [, ips]) => total + ips, 0) / schools.length;
+    rows.push({
+      label,
+      scored: true,
+      value: `${numberFormat.format(schools.length)} · IPS moyen ${ipsFormat.format(mean)}`,
+    });
+
+    for (const [nom, ips] of schools.slice(0, MAX_SCHOOLS)) {
+      rows.push({ label: escapeHtml(nom), value: ipsFormat.format(ips), wrap: true });
+    }
+
+    const hidden = schools.length - MAX_SCHOOLS;
+    if (hidden > 0) rows.push({ label: `+ ${numberFormat.format(hidden)} autres`, value: "", wrap: true });
+  }
+
+  return rows;
+}
+
 // One row per entry, each reading a raw column and sharing a unit unless it
 // names its own.
 function unitRows(entries, unit) {
@@ -99,6 +160,7 @@ const DETAILS = {
   // Bare "%" here: the criterion row above already says what the share is of,
   // and repeating it on all four rows only widens the column.
   espaces_verts: unitRows(GREEN_FAMILIES, "%"),
+  ips: ipsRows,
 
   transport: (props) => [
     { label: "Gares dans la commune", value: shorten(props.gares), wrap: true },
@@ -200,7 +262,7 @@ export function popupHtml(props, { weights, scope, scopeCount, meta }) {
   return `
     <div class="commune-popup">
       <header>
-        <h3>${props.name}</h3>
+        <h3>${escapeHtml(props.name)}</h3>
         <p class="popup-meta">
           ${props.code_insee} · ${numberFormat.format(props.population)} hab.
         </p>
@@ -230,6 +292,10 @@ export function popupHtml(props, { weights, scope, scopeCount, meta }) {
         ${meta.espaces_verts.annee} par des bois, espaces naturels, parcs et jardins
         publics. Les terres agricoles et les jardins privés sont affichés mais non
         comptés : verts sans être accessibles.
+        Qualité de l'enseignement : indice de position sociale moyen des
+        établissements de la commune à la rentrée ${meta.enseignement_ips.annee},
+        écoles, collèges et lycées confondus. L'IPS décrit l'origine sociale des
+        élèves accueillis, pas les résultats ni l'enseignement.
         Les scores des équipements suivent une échelle logarithmique : passer de 1
         à 10 équipements pèse plus que de 300 à 3 000 ; le loyer, la sécurité et
         l'air, des rangs. Tous sont relatifs aux
@@ -246,7 +312,7 @@ export function rankingHtml(ranked, { weights, selected }) {
       return `
         <li class="rank-row${active}" data-code="${props.code_insee}" tabindex="0">
           <span class="rank-position">${String(index + 1).padStart(2, "0")}</span>
-          <span class="rank-name">${props.name}</span>
+          <span class="rank-name">${escapeHtml(props.name)}</span>
           <span class="spine">${spineHtml(props, weights)}</span>
           <span class="rank-score" style="color:${rampColor(score)}">${scoreFormat.format(score)}</span>
         </li>`;

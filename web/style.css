@@ -608,6 +608,15 @@ input[type="range"]:focus-visible {
   white-space: nowrap;
 }
 
+/* The criterion names are the one thing in this table that may wrap, and they
+   have to be: everything else is nowrap, so with an auto layout a long label
+   can only take its width from the bar column, which has no content of its own
+   to defend itself with. "Qualité de l'enseignement" flattened every bar in its
+   column to 10px before this. */
+.commune-popup .criterion-row th {
+  white-space: normal;
+}
+
 .commune-popup td.num {
   font-family: var(--mono);
   font-size: 0.72rem;
@@ -625,6 +634,7 @@ input[type="range"]:focus-visible {
 
 .commune-popup td.bar {
   width: 46px;
+  min-width: 46px;
   padding: 0 0 0 0.5rem;
 }
 
