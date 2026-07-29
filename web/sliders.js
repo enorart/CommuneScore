@@ -43,7 +43,7 @@ export const CRITERIA = [
     raw: "nb_enseignement",
     unit: "dans la commune",
     defaultWeight: 0,
-    note: "Écoles, collèges et lycées",
+    note: "Maternelles, écoles, collèges et lycées",
   },
   {
     key: "ips",
@@ -52,7 +52,7 @@ export const CRITERIA = [
     raw: "ips_moyen",
     unit: "IPS moyen",
     defaultWeight: 0,
-    note: "Indice de position sociale des élèves, tous niveaux confondus",
+    note: "Indice de position sociale des élèves, tous niveaux confondus. Les écoles maternelles et hors contrat ne sont pas listées.",
   },
   {
     key: "petite_enfance",

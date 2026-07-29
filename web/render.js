@@ -107,7 +107,7 @@ const IPS_LEVELS = [
 // reason MAX_LISTED exists for stations. The level's own summary row carries
 // the count and the mean over all of them, so the cap hides names, never the
 // figure the score is built from.
-const MAX_SCHOOLS = 10;
+const MAX_SCHOOLS = 4;
 
 function schoolList(value) {
   if (!value) return [];

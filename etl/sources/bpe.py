@@ -47,7 +47,11 @@ CACHE_NAME = "bpe_2025.zip"
 SDOM_CRITERIA = {
     "nb_sports": ["F1"],
     "nb_culture": ["F3"],
-    "nb_enseignement": ["C1", "C2", "C3"],  # ecoles, colleges, lycees
+    # C1 premier degre (maternelles, primaires, elementaires), C2 second degre
+    # 1er cycle (colleges), C3 second degre 2nd cycle (lycees). C3 is the
+    # second cycle, NOT le superieur, whatever the numbering suggests: C4 and
+    # C5 are the post-bac ones and both are excluded above.
+    "nb_enseignement": ["C1", "C2", "C3"],
     "nb_sante": ["D1", "D2", "D3"],  # medical seul, hors action sociale
     "nb_commerces": ["B1", "B2", "B3"],
 }
