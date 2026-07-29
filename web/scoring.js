@@ -76,6 +76,7 @@ const SCORERS = {
   air: { scale: percentileRank, invert: true },
   espaces_verts: { scale: minMaxScale },
   ips: { scale: minMaxScale },
+  bruit: { scale: minMaxScale, invert: true },
 };
 
 for (const { key } of CRITERIA) {

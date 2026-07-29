@@ -106,6 +106,15 @@ export const CRITERIA = [
     note: "NO₂ et PM2.5, moyennes annuelles modélisées",
   },
   {
+    key: "bruit",
+    label: "Bruit",
+    property: "score_bruit",
+    raw: "pct_pop_bruit_oms",
+    unit: "% des habitants",
+    defaultWeight: 3,
+    note: "Trafic routier, ferroviaire et aérien, au-delà du seuil OMS",
+  },
+  {
     key: "espaces_verts",
     label: "Espaces verts",
     property: "score_espaces_verts",

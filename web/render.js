@@ -292,6 +292,11 @@ export function popupHtml(props, { weights, scope, scopeCount, meta }) {
         ${meta.espaces_verts.annee} par des bois, espaces naturels, parcs et jardins
         publics. Les terres agricoles et les jardins privés sont affichés mais non
         comptés : verts sans être accessibles.
+        Bruit : part des habitants exposés en ${meta.bruit.annee} à un niveau
+        ${meta.bruit.indicateur} supérieur à la ${meta.bruit.seuil}, trafics
+        routier, ferroviaire et aérien confondus. Une douzaine de communes en
+        bordure de la modélisation de Roissy ne sont pas notées, faute d'une
+        population modélisée représentative.
         Qualité de l'enseignement : indice de position sociale moyen des
         établissements de la commune à la rentrée ${meta.enseignement_ips.annee},
         écoles, collèges et lycées confondus. L'IPS décrit l'origine sociale des

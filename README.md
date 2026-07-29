@@ -25,7 +25,8 @@ That information exists. INSEE, ANIL, Île-de-France Mobilités and the Ministry
 - **Not an oracle.** Scores are relative, coarse and built from recorded data with known biases. Every number the map colours a commune by is shown next to it in raw form, so you can disagree with the score and keep the fact.
 - **No accounts, no backend, no tracking.** One static data file, one static site.
 
-Île-de-France only for now. Nothing in the design is region-specific except one source (Île-de-France Mobilités, for rail) : extending the scope is mostly a matter of finding a national equivalent for transport.
+Île-de-France only for now. 
+⚠️ Two sources are region-specific : Île-de-France Mobilités for rail, and Bruitparif for noise. The first has national equivalents to be assembled ; the second does not exist, because France only maps noise around large agglomerations and major infrastructure.
 
 ### How to use it
 
@@ -50,6 +51,7 @@ All sources are French open data, published per commune.
 | Rail stations and lines | Île-de-France Mobilités — Gares et stations du réseau ferré via data.gouve.fr                            | 2025 | Licence Ouverte v2.0 (Etalab) |
 | Recorded crime | SSMSI — Base statistique communale de la délinquance via data.gouv.fr                                    | 2025 | **ODbL v2** |
 | Air quality | Airparif — Concentrations moyennes annuelles modélisées, via its WCS (Web Coverage Service, raster datas | 2025 | **ODbL** |
+| Noise | Airparif & Bruitparif — Cartographie air-bruit, via bruitparif.fr                                        | 2024 | Licence Ouverte / Etalab 2.0 |
 | Green space | L'Institut Paris Region — Mode d'occupation du sol (MOS), 79 postes, via data.iledefrance.fr             | 2025 | Licence Ouverte / Etalab 2.0 |
 
 Attribution is surfaced in the app behind the map's ℹ️ button, alongside the basemap's own credits (OpenFreeMap / OpenStreetMap).
@@ -132,6 +134,19 @@ Note:
 - **Area-weighted, not population-weighted.** Nothing publishes population on a grid, so a commune's parkland counts as much as its town centre. Large rural communes are flattered, and a commune with a dense core on the A86 and a forest behind it reads better than its residents experience.
 - **One number for a territory the gradient cuts across.** A commune's périphérique edge can read twice its parkland edge. The criterion answers *how polluted is this commune*, not *how polluted is this street*.
 
+#### Noise
+
+`pct_pop_bruit_oms` is the **share of a commune's residents living above the WHO noise recommendation**, road, rail and air traffic pooled, as an Lden annual average. A bounded share, so a plain min-max like green space, **inverted**, quieter scores higher. 
+
+Bruitparif publishes this crossed with Airparif's air classes, as a 3×3 grid — each axis collapsed to *meets the WHO recommendation* / *above it but within the French regulatory limit* / *above the limit*. Only the noise axis is read. Which axis is which is not stated in the file and was established two ways: every column on the air axis's first level is zero across the whole region, matching Airparif's finding that nowhere in Île-de-France meets the WHO air guideline; and the top of the noise axis is Iverny, Juilly, Cuisy, Mauregard and Le Mesnil-Amelot, villages under the CDG approach with among the *cleanest* air in the region. Only noise orders them that way.
+
+Note:
+
+- **It overlaps with air quality more than any other pair of criteria here**: correlation +0.74 with `indice_oms`, and +0.62 with rent. Both are mostly traffic, so a good part of what this says, the air criterion already said. It stays a separate criterion because the overlap is not total.
+- **"Above the WHO recommendation" is a low bar**, by design: Lden 53 dB for road traffic. Any commune with through traffic reaches it. 479 communes read 0 % and 140 read 100 %, so the criterion separates places with mapped infrastructure from places without more than it grades the ones with.
+- **The share is of the *modelled* population**, which is whoever lives where a noise map exists. 
+- **An annual average, and one number for a whole commune.** Lden weights evening +5 dB and night +10 dB, which is its only concession to when the noise happens; nothing here distinguishes a night flight path from a permanent motorway hum.
+
 #### Green space
 
 `pct_espaces_verts` is the **share of the commune's own surface** under woods, natural land, parks and public gardens. Not a count, not a rate against population; it is scored on a plain min-max: it is already a bounded 0–100 figure.
@@ -189,7 +204,7 @@ etl/
     logs.py               # setup python logger for etl 
   sources/                # one module per data source, all the same shape (see its __init__.py)
     rent.py  bpe.py  idfm_gares.py  ssmsi.py  airparif.py  mos.py
-    ips_schools.py
+    ips_schools.py  bruit.py
   pipeline.py             # orchestration only: ref + every source -> communes_scores.geojson
 
 web/
@@ -214,7 +229,7 @@ data/
 
 ### Tech stack
 
-**ETL — Python 3.13, managed with [uv](https://docs.astral.sh/uv/).** `polars` for the tabular sources (BPE is a large national CSV, SSMSI a 5.2-million-row Parquet), `geopandas` + `shapely` for the spatial work (buffering communes, point-in-polygon counts, geometry simplification), `requests` for downloads. No database: the pipeline's only output is a static file.
+**ETL — Python 3.13, managed with [uv](https://docs.astral.sh/uv/).** `polars` for the tabular sources (BPE is a large national CSV, SSMSI a 5.2-million-row Parquet, Bruitparif an xlsx via `fastexcel`), `geopandas` + `shapely` for the spatial work (buffering communes, point-in-polygon counts, geometry simplification), `rasterio` for the one raster source, `requests` for downloads. No database: the pipeline's only output is a static file.
 
 **Frontend — Vite + vanilla JS + [MapLibre GL JS](https://maplibre.org/).** No framework. MapLibre and basemap tiles from OpenFreeMap.
 
@@ -227,7 +242,7 @@ uv sync
 uv run python -m etl.pipeline
 ```
 
-Output: `data/processed/communes_scores.geojson` — **1 285 features, 67 properties, ~4.5 MB**, committed to the repo so the frontend works without running the ETL. The first run downloads ~157 MB into `data/raw/`.
+Output: `data/processed/communes_scores.geojson` — **1 285 features, 68 properties, ~4.6 MB**, committed to the repo so the frontend works without running the ETL. The first run downloads ~157 MB into `data/raw/`.
 
 Three conventions hold the pipeline together:
 

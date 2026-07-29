@@ -32,6 +32,7 @@ const SOURCE_ATTRIBUTION = [
   'Contours et population : <a href="https://geoservices.ign.fr/adminexpress" target="_blank" rel="noopener">IGN ADMIN EXPRESS COG</a>',
   'Espaces verts : <a href="https://data.iledefrance.fr/explore/dataset/mos-occupation-du-sol-2025-and-2021-en-79-postes-de-la-region-ile-de-france/" target="_blank" rel="noopener">L\'Institut Paris Region — MOS 2025</a>',
   'IPS des établissements : <a href="https://data.education.gouv.fr/explore/dataset/fr-en-ips-ecoles-ap2022/" target="_blank" rel="noopener">Ministère de l\'Éducation nationale 2024-2025</a>',
+  'Bruit : <a href="https://www.bruitparif.fr/opendata-air-bruit/" target="_blank" rel="noopener">Cartographie air-bruit établie par Airparif et Bruitparif, 2024</a>',
   // The two sources not under Licence Ouverte, so they carry their own.
   'Délinquance : <a href="https://www.data.gouv.fr/datasets/bases-statistiques-communale-departementale-et-regionale-de-la-delinquance-enregistree-par-la-police-et-la-gendarmerie-nationales" target="_blank" rel="noopener">SSMSI 2025</a> (ODbL v2)',
   `Qualité de l'air : <a href="https://www.data.gouv.fr/datasets/concentrations-moyennes-annuelles-des-polluants-reglementes-en-ile-de-france" target="_blank" rel="noopener">Airparif 2025</a> (ODbL)`,
