@@ -138,14 +138,34 @@ Note:
 
 `pct_pop_bruit_oms` is the **share of a commune's residents living above the WHO noise recommendation**, road, rail and air traffic pooled, as an Lden annual average. A bounded share, so a plain min-max like green space, **inverted**, quieter scores higher. 
 
+**What Lden is.** *Level day-evening-night*, the indicator European noise mapping has to use under Directive 2002/49/CE. An A-weighted sound level averaged over a year from three periods — in France day 06–18 h, evening 18–22 h, night 22–06 h — with the evening penalised **+5 dB** and the night **+10 dB**:
+
+```
+Lden = 10·log₁₀[ (12·10^(Ld/10) + 4·10^((Le+5)/10) + 8·10^((Ln+10)/10)) / 24 ]
+```
+
+The penalties are the point: the same physical noise is worse when you are trying to sleep, so **Lden measures annoyance, not sound**. A motorway that runs all night scores far above one with identical daytime traffic that goes quiet. Being logarithmic, +10 dB is ten times the acoustic energy and roughly "twice as loud" — the gap between the two columns below is not the small thing it looks.
+
+**There is no single WHO threshold**, which is why the criterion pools three sources rather than applying one number. WHO *Environmental Noise Guidelines for the European Region* (2018), strong recommendations, against France's own limits from the *arrêté du 4 avril 2006*:
+
+| Source | WHO Lden | WHO Lnight | French limit |
+|---|---|---|---|
+| Road | **53 dB** | 45 dB | 68 dB |
+| Rail | **54 dB** | 44 dB | 73 dB (68 for LGV) |
+| Air | **45 dB** | 40 dB | 55 dB |
+
+Two things follow. The French limits are **15–20 dB laxer than WHO**, which is why the regulatory threshold was rejected as the scored figure — half the region reads exactly 0 against it. And **aircraft has by far the strictest guideline, 45 dB**, with the widest footprint: that is the mechanism behind villages under the Roissy approach reading 100 % while central Paris reads 75–93 %.
+
+The thresholds are Bruitparif's to apply, not this project's. The file arrives already classified and the ETL only sums the classes above the recommendation, so `WHO_THRESHOLDS_LDEN` in `etl/sources/bruit.py` is carried into the GeoJSON `metadata` purely so the popup can state it: editing that constant changes what the app *says*, never what it computes.
+
 Bruitparif publishes this crossed with Airparif's air classes, as a 3×3 grid — each axis collapsed to *meets the WHO recommendation* / *above it but within the French regulatory limit* / *above the limit*. Only the noise axis is read. Which axis is which is not stated in the file and was established two ways: every column on the air axis's first level is zero across the whole region, matching Airparif's finding that nowhere in Île-de-France meets the WHO air guideline; and the top of the noise axis is Iverny, Juilly, Cuisy, Mauregard and Le Mesnil-Amelot, villages under the CDG approach with among the *cleanest* air in the region. Only noise orders them that way.
 
 Note:
 
 - **It overlaps with air quality more than any other pair of criteria here**: correlation +0.74 with `indice_oms`, and +0.62 with rent. Both are mostly traffic, so a good part of what this says, the air criterion already said. It stays a separate criterion because the overlap is not total.
-- **"Above the WHO recommendation" is a low bar**, by design: Lden 53 dB for road traffic. Any commune with through traffic reaches it. 479 communes read 0 % and 140 read 100 %, so the criterion separates places with mapped infrastructure from places without more than it grades the ones with.
+- **"Above the WHO recommendation" is easily reached** : 53 dB for road, 54 for rail, 45 for air.
 - **The share is of the *modelled* population**, which is whoever lives where a noise map exists. 
-- **An annual average, and one number for a whole commune.** Lden weights evening +5 dB and night +10 dB, which is its only concession to when the noise happens; nothing here distinguishes a night flight path from a permanent motorway hum.
+- **An annual average, and one number for a whole commune.** The evening and night penalties above are Lden's only concession to *when* the noise happens; beyond them nothing here distinguishes a night flight path from a permanent motorway hum, or a quiet street from the boulevard one block away.
 
 #### Green space
 

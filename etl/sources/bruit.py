@@ -18,10 +18,11 @@ axis is never touched.
 Known limitations:
   - the shares are of the *modelled* population, which is the population living
     where a noise map exists.
-  - "above the WHO recommendation" is a low bar by design (Lden 53 dB for road
-    traffic), so a commune with any through traffic reaches it. 146 communes
-    read 100% and 479 read 0%: the criterion separates places with mapped
-    infrastructure from places without, more than it grades the ones with.
+  - "above the WHO recommendation" is easily reached: 53 dB Lden for road, 54
+    for rail, 45 for air (see WHO_THRESHOLDS_LDEN), so a commune with any
+    through traffic passes it. 146 communes read 100% and 479 read 0%: the
+    criterion separates places with mapped infrastructure from places without,
+    more than it grades the ones with.
   - an annual average says nothing about a night flight path versus a permanent
     motorway hum.
 """
@@ -63,8 +64,21 @@ POP_COLUMN = "POP"
 CLASSES = ["11", "12", "13", "21", "22", "23", "31", "32", "33"]
 
 # Noise classes counted as exposed: above the WHO recommendation, whether or not
-# also above the regulatory limit.
+# also above the regulatory limit. This is what "exposed" means here; the
+# thresholds below are Bruitparif's, applied before we ever see the file.
 EXPOSED_NOISE_CLASSES = ["2", "3"]
+
+# WHO Environmental Noise Guidelines for the European Region, 2018, strong
+# recommendations, in dB Lden. Published for the popup to state, never used in
+# any computation: the classification happened upstream, and the only thing that
+# decides what this module counts is EXPOSED_NOISE_CLASSES above.
+#
+# There is no single WHO Lden, which is why the three are carried separately.
+# Air traffic has the strictest guideline and the widest footprint, and that is
+# what puts whole villages under the Roissy approach at 100% while central Paris
+# reads 75-93%. France's own limits (arrete du 4 avril 2006) are 15 to 20 dB
+# laxer: 68 road, 73 rail, 55 air.
+WHO_THRESHOLDS_LDEN = {"route": 53, "fer": 54, "air": 45}
 
 # The 2024 file predates two mergers that IGN's 2025 COG has already applied.
 # Summed into their successor rather than dropped, or Saint-Denis would be
@@ -167,6 +181,6 @@ def metadata() -> dict:
         "bruit": {
             "annee": YEAR,
             "indicateur": "Lden",
-            "seuil": "recommandation OMS",
+            "seuils_oms": WHO_THRESHOLDS_LDEN,
         }
     }
