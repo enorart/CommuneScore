@@ -162,6 +162,17 @@ const DETAILS = {
   espaces_verts: unitRows(GREEN_FAMILIES, "%"),
   ips: ipsRows,
 
+  // The radiance above is a 2018 satellite pass at 23h40.
+  pollution_lumineuse: (props) => [
+    {
+      label: "Éclairage public",
+      value: props.eclairage_depuis
+        ? `${props.eclairage_pratique} (${props.eclairage_depuis})`
+        : props.eclairage_pratique || "non renseigné",
+      wrap: true,
+    },
+  ],
+
   transport: (props) => [
     { label: "Gares dans la commune", value: shorten(props.gares), wrap: true },
     {
@@ -305,9 +316,21 @@ export function popupHtml(props, { weights, scope, scopeCount, meta }) {
         établissements de la commune à la rentrée ${meta.enseignement_ips.annee},
         écoles, collèges et lycées confondus. L'IPS décrit l'origine sociale des
         élèves accueillis, pas les résultats ni l'enseignement.
+        Ciel nocturne : lumière émise vers le ciel par la commune, mesurée par le
+        satellite ${meta.pollution_lumineuse.satellite} en
+        ${meta.pollution_lumineuse.annee} à ${meta.pollution_lumineuse.resolution_m} m
+        (${meta.pollution_lumineuse.passages.join(" et ")}), moyennée sur la
+        superficie de la commune. C'est la lumière qui part du sol, non la clarté
+        du ciel telle qu'on la voit : celle d'une commune voisine se diffuse
+        au-dessus de la vôtre sans jamais entrer dans ce chiffre. Les valeurs sous
+        ${meta.pollution_lumineuse.seuil_bruit} ${meta.pollution_lumineuse.unite}
+        sont ramenées à zéro par la source. Les deux passages ont lieu avant
+        l'heure d'extinction pratiquée par de nombreuses communes : la pratique
+        d'éclairage, détectée séparément sur ${meta.eclairage_nocturne.periode},
+        est indiquée dans le détail du critère.
         Les scores des équipements suivent une échelle logarithmique : passer de 1
-        à 10 équipements pèse plus que de 300 à 3 000 ; le loyer, la sécurité et
-        l'air, des rangs. Tous sont relatifs aux
+        à 10 équipements pèse plus que de 300 à 3 000 ; le loyer, la sécurité,
+        l'air et le ciel nocturne, des rangs. Tous sont relatifs aux
         ${numberFormat.format(scopeCount)} communes de « ${scope.label} » : un 100 est le meilleur de cette sélection, pas de la région.
       </p>
     </div>

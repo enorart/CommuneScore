@@ -53,6 +53,8 @@ All sources are French open data, published per commune.
 | Air quality | Airparif — Concentrations moyennes annuelles modélisées, via its WCS (Web Coverage Service, raster datas | 2025 | **ODbL** |
 | Noise | Airparif & Bruitparif — Cartographie air-bruit, via bruitparif.fr                                        | 2024 | Licence Ouverte / Etalab 2.0 |
 | Green space | L'Institut Paris Region — Mode d'occupation du sol (MOS), 79 postes, via data.iledefrance.fr             | 2025 | Licence Ouverte / Etalab 2.0 |
+| Night sky | Cerema — Cartographie de la radiance nocturne du satellite LuoJia 1-01, via data.gouv.fr                  | 2018 | Licence Ouverte / Etalab 2.0 |
+| Public lighting practice | Cerema, DarkSkyLab & OFB — Cartographie nationale des pratiques d'éclairage nocturne, via data.gouv.fr | 2014-2025 | **ODbL** |
 
 Attribution is surfaced in the app behind the map's ℹ️ button, alongside the basemap's own credits (OpenFreeMap / OpenStreetMap).
 
@@ -167,6 +169,23 @@ Note:
 - **The share is of the *modelled* population**, which is whoever lives where a noise map exists. 
 - **An annual average, and one number for a whole commune.** The evening and night penalties above are Lden's only concession to *when* the noise happens; beyond them nothing here distinguishes a night flight path from a permanent motorway hum, or a quiet street from the boulevard one block away.
 
+#### Night sky
+
+`radiance_nocturne` is the **light the commune sends upwards**, averaged over its own surface, in nW/cm²/sr. Scored as an **inverted percentile rank**, like rent, security and air: darker scores higher.
+The source is the LuoJia 1-01 satellite, that mapped France once, in 2018, at 130 m, finer than the VIIRS composites most light-pollution maps are built on, which matters when the smallest commune here is 9.6 ha and a Paris arrondissement is under 2 km².
+
+The popup also names the commune's lighting policy: states the commune's most recent detected change. It carries no weight in the score.
+
+Note:
+
+- **It is an emission map, not a sky brightness map.** It measures light leaving the ground, not the glow a resident looks up at.
+- **2018**: LuoJia 1-01 was a demonstration satellite and the campaign was never repeated.
+- **Area-weighted, not population-weighted**: a commune with a lit centre and a dark forest behind it reads better than its residents experience.
+- **It overlaps with urbanity**: +0.84 against the transport line count, +0.76 against rent, +0.74 against `indice_oms`, and a Spearman of +0.85 against population. It keeps its own slider because it is not reducible to any one of them.
+- **The two light sources are not redundant, but not in the way you would guess.** Communes flagged *extinction en cœur de nuit* have a median radiance of 2.6 and 491 of the 501 are in the grande couronne; *extinction partielle ou rénovation* sits at 38.5 and is the urban practice. The policy column separates communes the brightness figure cannot.
+- **Detected from space, not declared.** VIIRS passes around 1h30, so an extinction beginning after that is invisible and the commune reads as changing nothing: suspected changes, not a municipal record.
+- **It is a record of change, not of state.** A commune that has always left its lights on and one that has switched them off since before 2014 both read "aucun changement".
+
 #### Green space
 
 `pct_espaces_verts` is the **share of the commune's own surface** under woods, natural land, parks and public gardens. Not a count, not a rate against population; it is scored on a plain min-max: it is already a bounded 0–100 figure.
@@ -224,7 +243,7 @@ etl/
     logs.py               # setup python logger for etl 
   sources/                # one module per data source, all the same shape (see its __init__.py)
     rent.py  bpe.py  idfm_gares.py  ssmsi.py  airparif.py  mos.py
-    ips_schools.py  bruit.py
+    ips_schools.py  bruit.py  radiance.py  extinctions.py
   pipeline.py             # orchestration only: ref + every source -> communes_scores.geojson
 
 web/
@@ -262,7 +281,7 @@ uv sync
 uv run python -m etl.pipeline
 ```
 
-Output: `data/processed/communes_scores.geojson` — **1 285 features, 68 properties, ~4.6 MB**, committed to the repo so the frontend works without running the ETL. The first run downloads ~157 MB into `data/raw/`.
+Output: `data/processed/communes_scores.geojson` — **1 285 features, 71 properties, ~4.7 MB**, committed to the repo so the frontend works without running the ETL. The first run downloads ~277 MB into `data/raw/`.
 
 Three conventions hold the pipeline together:
 
@@ -318,13 +337,13 @@ Three implementation notes that are load-bearing:
 
 Code: **MIT**. Do what you like with it.
 
-Data: the generated `communes_scores.geojson` is a derived database of SSMSI's crime statistics (**ODbL v2**) and of Airparif's modelled concentrations (**ODbL**). ODbL is share-alike, so that file and anything derived from it must be redistributed under ODbL with attribution to the sources listed above.
+Data: the generated `communes_scores.geojson` is a derived database of SSMSI's crime statistics (**ODbL v2**), of Airparif's modelled concentrations (**ODbL**) and of Cerema's national mapping of night lighting practice (**ODbL**). ODbL is share-alike, so that file and anything derived from it must be redistributed under ODbL with attribution to the sources listed above.
 
 ### What's next ?
 
 Possible improvments:
 
-1. **Extending beyond Île-de-France** : replacing the IDFM rail source with a national equivalent and/or local equivalent for cities like Lyon, Marseille, Toulouse... The IPS and BPE sources are already national.
+1. **Extending beyond Île-de-France** : replacing the IDFM rail source with a national equivalent and/or local equivalent for cities like Lyon, Marseille, Toulouse... The IPS, BPE and the two light sources are already national — Cerema publishes the LuoJia radiance for 80 départements, and the lighting-practice file covers all 22 773 communes as it is.
 2. Dynamic door-to-door commute time from the centroid of a commune to a chosen place. Need dynamic API call and a web server, not a static website anymore.
 3. Adding qualitative review from locals / Fetching with authorisation some website about quality of life in a commune or district.
 

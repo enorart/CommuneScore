@@ -77,6 +77,7 @@ const SCORERS = {
   espaces_verts: { scale: minMaxScale },
   ips: { scale: minMaxScale },
   bruit: { scale: minMaxScale, invert: true },
+  pollution_lumineuse: { scale: percentileRank, invert: true },
 };
 
 for (const { key } of CRITERIA) {

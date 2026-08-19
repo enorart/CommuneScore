@@ -123,6 +123,15 @@ export const CRITERIA = [
     defaultWeight: 3,
     note: "Bois, parcs et jardins publics, hors terres agricoles",
   },
+  {
+    key: "pollution_lumineuse",
+    label: "Ciel nocturne",
+    property: "score_pollution_lumineuse",
+    raw: "radiance_nocturne",
+    unit: "nW/cm²/sr",
+    defaultWeight: 1,
+    note: "Lumière émise vers le ciel, vue par satellite vers 23h40",
+  },
 ];
 
 // initialisation
