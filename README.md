@@ -31,7 +31,7 @@ That information exists. INSEE, ANIL, Île-de-France Mobilités and the Ministry
 ### How to use it
 
 1. **Pick a comparison zone.** Top of the sidebar. All of Île-de-France, the petite or grande couronne, one of the 8 départements, or one of the 63 intercommunalités. This matters more than it looks : see [Scope](#scope-what-a-score-is-relative-to).
-2. **Set your priorities.** One slider per criterion. Sliding to **0 removes the criterion entirely** rather than scoring it zero, so "I don't have children and I don't care about schools" is possible.
+2. **Set your priorities.** One slider per criterion, grouped into four foldable families — *Habitat*, *Environnement*, *Famille*, *Loisirs* — each showing how many of its criteria you have weighted. Sliding to **0 removes the criterion entirely** rather than scoring it zero, so "I don't have children and I don't care about schools" is possible: that is why *Famille* starts folded away.
 3. **Read the map.** Darker = better fit for *your* weights. The ranking beneath the sliders lists the best communes, each with a small "spine" of bars showing its profile at a glance : a commune strong everywhere and one strong in two things can share the same composite score.
 4. **Click a commune.** The popup breaks the score down criterion by criterion, showing the raw value next to each score. Rent, transport, security and air-quality rows expand for detail.
 5. **Zoom in on a zone.** In the popup, the commune's département and intercommunalité are clickable : comparing 30 neighbouring communes tells you far more than comparing 1 285.
@@ -321,7 +321,7 @@ npm run preview  # serve the built site locally
 
 `dev` and `build` both run a hook that copies the GeoJSON into `web/public/data/`. Re-run the ETL any time you want fresher data, then restart the dev server.
 
-**Adding a criterion** is deliberately cheap: add one entry to `CRITERIA` in `web/sliders.js` (key, label, the `score_*` property, the raw column it reads, a unit, a default weight). The map, the sliders, the ranking, the spine bars, the popup and the scope re-scoring all iterate that list and pick it up for free. The only extra step is a `SCORERS` entry in `web/scoring.js`, and only if the default (log min-max, higher is better) is wrong for it — as it is for rent and security, which are both inverted percentile ranks.
+**Adding a criterion** is deliberately cheap: add one entry to `CRITERIA` in `web/sliders.js` (key, family, label, the `score_*` property, the raw column it reads, a unit, a default weight). The map, the sliders, the ranking, the spine bars, the popup and the scope re-scoring all iterate that list and pick it up for free. The only extra step is a `SCORERS` entry in `web/scoring.js`, and only if the default (log min-max, higher is better) is wrong for it — as it is for rent and security, which are both inverted percentile ranks.
 
 Three implementation notes that are load-bearing:
 

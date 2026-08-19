@@ -124,6 +124,88 @@ a {
 
 /* ---------- Weight sliders ---------- */
 
+/* Fourteen sliders read as a wall, so they are grouped, and each group folds.
+   <details>, so the open state, the keyboard handling and the ARIA come from
+   the element rather than from us — see renderSliders in sliders.js.
+
+   The heading is deliberately quieter than .panel-title above it — same mono
+   uppercase grammar, one step down in weight and colour — so the grouping
+   reads as structure inside the panel rather than as four new panels. */
+.criterion-family + .criterion-family {
+  margin-top: 1.6rem;
+}
+
+.criterion-family-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.9rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  cursor: pointer;
+  user-select: none;
+  /* With the rule below: without both, the browser's native triangle sits
+     beside the chevron we draw. `list-style` covers Firefox and current
+     Chrome, the pseudo-element older WebKit. */
+  list-style: none;
+}
+
+.criterion-family-title::-webkit-details-marker {
+  display: none;
+}
+
+.criterion-family-title:hover,
+.criterion-family[open] > .criterion-family-title {
+  color: var(--ink-soft);
+}
+
+.criterion-family-title:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* The count sits against the right edge and the chevron after it, so the two
+   disclosure controls on this page — this and the popup's .detail-toggle —
+   point the same way and are drawn the same way. */
+.criterion-family-count {
+  margin-left: auto;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+
+.criterion-family.is-muted .criterion-family-title {
+  color: var(--ink-faint);
+  opacity: 0.75;
+}
+
+.criterion-family-title::after {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 3.5px solid transparent;
+  border-right: 3.5px solid transparent;
+  border-top: 4px solid currentColor;
+  transition: transform 0.15s ease;
+}
+
+.criterion-family[open] > .criterion-family-title::after {
+  transform: rotate(180deg);
+}
+
+/* The last slider's own bottom margin is enough once the group is open; when
+   it is closed the heading should not keep the same gap under it. */
+.criterion-family:not([open]) > .criterion-family-title {
+  margin-bottom: 0;
+}
+
 .criterion {
   margin-bottom: 1.1rem;
 }
@@ -489,9 +571,13 @@ input[type="range"]:focus-visible {
 
 /* The ten criteria, in two columns. Two tables rather than one so that a
    criterion's detail rows open under it and not across the gap. */
+/* minmax(0, …) rather than a bare 1fr: a bare one floors at the table's
+   min-content width, so any cell that cannot shrink widens the whole popup
+   instead of wrapping. Belt and braces with the wrap rules further down —
+   together they mean no future long label can bring the scrollbar back. */
 .popup-criteria {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0 1.5rem;
   align-items: start;
 }
@@ -502,7 +588,7 @@ input[type="range"]:focus-visible {
    to nothing. Its width tracks the viewport anyway, being capped at 92vw. */
 @media (max-width: 640px) {
   .popup-criteria {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -614,6 +700,18 @@ input[type="range"]:focus-visible {
    to defend itself with. "Qualité de l'enseignement" flattened every bar in its
    column to 10px before this. */
 .commune-popup .criterion-row th {
+  white-space: normal;
+}
+
+/* Same bug, one level down, and it was left behind when the rule above was
+   written: a detail row is `<th>` + a nowrap `<td class="num">`, so
+   "Atteintes aux personnes" next to its rate set a min-content width wider
+   than the grid column could give, and the popup grew a horizontal scrollbar.
+   The value wraps too — it may break between a number and its unit, never
+   inside a number, since numbers carry no spaces. O₃ is the widest of them,
+   at "jours > 120 µg/m³". */
+.commune-popup .row-detail th,
+.commune-popup .row-detail td.num {
   white-space: normal;
 }
 
