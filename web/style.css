@@ -450,6 +450,14 @@ input[type="range"]:focus-visible {
   border: 1px solid var(--rule);
   box-shadow: 0 6px 22px rgb(20 23 28 / 0.16);
   font-family: var(--sans);
+
+  /* Reserve the scrollbar's width whether or not it is showing. Without this
+     the popup is one width closed and 15px narrower the moment a note or a
+     detail section makes it scroll — and that 15px was enough to grow a
+     horizontal scrollbar on every platform with classic scrollbars. Headless
+     Chromium uses overlay scrollbars (0px), so this is invisible in a browser
+     check: verify it by shrinking the popup 15px instead. */
+  scrollbar-gutter: stable;
 }
 
 .commune-popup {
@@ -578,17 +586,37 @@ input[type="range"]:focus-visible {
 .popup-criteria {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 0 1.5rem;
+  gap: 0 1rem;
   align-items: start;
 }
 
 /* Back to one list where two columns no longer fit. Keyed to the viewport
    rather than the popup: the popup is sized shrink-to-fit, and giving it
    `container-type: inline-size` would contain the inline axis and collapse it
-   to nothing. Its width tracks the viewport anyway, being capped at 92vw. */
-@media (max-width: 640px) {
+   to nothing.
+
+   1100px, not the 640px this used to say. The popup is capped at 92vw *of the
+   map*, not of the window, and above 860px the sidebar takes ~340px of that —
+   so a 900px window gives a 516px popup, narrower than a 640px window does. The
+   two columns need about 660px and were overflowing across the whole 641-1056px
+   band; measured, that was 71px of horizontal scroll at 900px wide. Between
+   717px and 860px the layout has already stacked and two columns would in fact
+   fit, but a rule that switched off and on again as the window grows is not
+   worth the 143px it buys. */
+@media (max-width: 1100px) {
   .popup-criteria {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Below this the popup is narrow enough that the raw value column, nowrap by
+   default, is what overflows — 18px of horizontal scroll at 360px wide, on the
+   criterion rows and not on anything added since. It may break between a number
+   and its unit, never inside a number, since numbers carry no spaces: exactly
+   the argument the .row-detail rule above already makes. */
+@media (max-width: 420px) {
+  .commune-popup .criterion-row td.num {
+    white-space: normal;
   }
 }
 
@@ -645,6 +673,79 @@ input[type="range"]:focus-visible {
   border-radius: 2px;
 }
 
+/* The (i) that carries a criterion's note. Deliberately tiny and sized in its
+   own right rather than in em: it sits in the label column, which sizes the
+   whole table (see the note above .commune-popup .criterion-row th), so every
+   pixel it takes comes off the score bars. Fixed width and height rather than
+   padding, so it stays round whatever the label beside it does.
+
+   It has a cell of its own rather than sitting inside the label's: the label
+   column is the one thing here allowed to wrap, so an (i) inside it wrapped to
+   a line of its own under every short label. */
+.commune-popup td.info {
+  width: 13px;
+  padding: 0 0.25rem 0 0;
+  vertical-align: middle;
+}
+
+.criterion-info {
+  display: inline-grid;
+  place-items: center;
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  background: none;
+  color: var(--ink-faint);
+  font-family: var(--mono);
+  font-size: 8.5px;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: 1px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.criterion-info:hover,
+.criterion-info[aria-expanded="true"] {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.criterion-info:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* Matches the button, for the footnote sentence that points at it. */
+.info-inline {
+  display: inline-grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  font-family: var(--mono);
+  font-size: 8px;
+  vertical-align: 1px;
+}
+
+/* Prose, so it takes the full width and wraps : it has nothing to align with,
+   unlike the detail rows above it. */
+.row-note td {
+  padding: 0.1rem 0 0.45rem 0.85rem;
+}
+
+.note-text {
+  margin: 0;
+  border-left: 2px solid var(--rule);
+  padding-left: 0.6rem;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--ink-faint);
+  text-wrap: pretty;
+}
+
 .row-detail th,
 .row-detail td {
   padding-left: 0.85rem;
@@ -690,7 +791,7 @@ input[type="range"]:focus-visible {
   text-align: left;
   font-weight: 400;
   color: var(--ink-soft);
-  padding: 0.16rem 0.5rem 0.16rem 0;
+  padding: 0.16rem 0.4rem 0.16rem 0;
   white-space: nowrap;
 }
 
@@ -727,7 +828,7 @@ input[type="range"]:focus-visible {
 .commune-popup td.score {
   color: var(--ink);
   font-weight: 500;
-  padding-left: 0.4rem;
+  padding-left: 0.3rem;
 }
 
 .commune-popup td.bar {

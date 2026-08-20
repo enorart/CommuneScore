@@ -212,6 +212,135 @@ const DETAILS = {
   ],
 };
 
+// Footnotes for each criteria
+const NOTES = {
+  loyer: () => `
+    Moyenne des indicateurs appartement et maison publiés par l'ANIL, en €/m².
+    Les typologies T1–T2 et T3 et plus sont affichées dans le détail mais non
+    comptées : sous-ensembles de l'indicateur appartement, elles pèseraient trois
+    fois l'appartement contre une fois la maison.
+    Noté au rang inversé : moins cher, mieux noté.`,
+
+  transport: () => `
+    Nombre de lignes distinctes atteignables à moins de ${NEARBY_RADIUS_KM} km,
+    tous modes confondus — et non nombre de gares : trois arrêts du même RER
+    mènent au même endroit. C'est le seul critère qui franchit les limites de la
+    commune, Île-de-France Mobilités étant la seule source à publier les
+    coordonnées de ses points. Ce n'est pas un temps de trajet.`,
+
+  securite: (props, meta) => `
+    Faits enregistrés par la police et la gendarmerie en ${meta.securite.annee}
+    sur le territoire de la commune, pour 1 000 habitants, sur
+    ${meta.securite.nb_indicateurs} indicateurs.
+    Ils sont comptés là où ils se produisent : une commune avec une gare, un
+    centre commercial ou un aéroport absorbe des faits visant des personnes qui
+    n'y habitent pas.${securityFootnote(props, meta.securite.nb_indicateurs)}
+    Noté au rang inversé.`,
+
+  commerces: () => `
+    Commerces et services de proximité recensés par l'INSEE sur le territoire de
+    la commune seule. Une commune voisine d'un centre-ville se lit donc comme
+    n'ayant rien.
+    Échelle logarithmique : passer de 1 à 10 commerces compte davantage que de
+    300 à 3 000.`,
+
+  sante: () => `
+    Médecins, spécialistes, dentistes, infirmiers, pharmacies, laboratoires et
+    établissements de soins présents dans la commune. L'action sociale n'est pas
+    comptée : ce n'est pas de l'accès aux soins.
+    Échelle logarithmique.`,
+
+  air: (props, meta) => `
+    Moyennes annuelles ${meta.air.annee} modélisées par Airparif, moyennées sur
+    la superficie de la commune. L'indice rapporte le NO₂ et les PM2.5 aux seuils
+    recommandés par l'OMS (${meta.air.seuils_oms.no2} et
+    ${meta.air.seuils_oms.pm25} µg/m³) : 1 vaut « au niveau recommandé ».
+    Les PM10 et l'ozone sont affichés mais non comptés.
+    Moyenne de surface et non de population : une commune au centre dense et à la
+    forêt derrière lui se lit mieux que ses habitants ne la vivent.
+    Noté au rang inversé.`,
+
+  bruit: (props, meta) => `
+    Part des habitants exposés en ${meta.bruit.annee} à un niveau
+    ${meta.bruit.indicateur} supérieur aux valeurs recommandées par l'OMS
+    (${meta.bruit.seuils_oms.route} dB pour la route,
+    ${meta.bruit.seuils_oms.fer} pour le fer,
+    ${meta.bruit.seuils_oms.air} pour l'aérien), ces trois trafics confondus.
+    Le ${meta.bruit.indicateur} est une moyenne annuelle qui majore la soirée de
+    5 dB et la nuit de 10 dB : c'est une mesure de la gêne, pas du bruit brut.
+    Une douzaine de communes en bordure de la modélisation de Roissy ne sont pas
+    notées, faute d'une population modélisée représentative.`,
+
+  espaces_verts: (props, meta) => `
+    Part de la surface de la commune occupée en ${meta.espaces_verts.annee} par
+    des bois, espaces naturels, parcs et jardins publics.
+    Les terres agricoles et les jardins privés sont affichés mais non comptés :
+    verts sans être accessibles.
+    Mesuré sur la commune seule : Vincennes ne reçoit rien du bois de Vincennes,
+    qui est dans le 12e.`,
+
+  pollution_lumineuse: (props, meta) => `
+    Lumière émise vers le ciel par la commune, mesurée par le satellite
+    ${meta.pollution_lumineuse.satellite} en ${meta.pollution_lumineuse.annee} à
+    ${meta.pollution_lumineuse.resolution_m} m
+    (${meta.pollution_lumineuse.passages.join(" et ")}), moyennée sur sa
+    superficie : lumière qui part du sol, non la clarté du ciel telle
+    qu'on la voit.
+    Les valeurs sous ${meta.pollution_lumineuse.seuil_bruit}
+    ${meta.pollution_lumineuse.unite} sont ramenées à zéro par la source.
+    Les deux passages ont lieu avant l'heure d'extinction pratiquée par beaucoup
+    de communes : la pratique d'éclairage, détectée séparément sur
+    ${meta.eclairage_nocturne.periode}, est dans le détail du critère.
+    Noté au rang inversé.`,
+
+  enseignement: () => `
+    Écoles, collèges et lycées implantés dans la commune : premier degré
+    (maternelles, primaires, élémentaires), collèges, puis lycées général,
+    professionnel et agricole. Rien au-delà du lycée — ni université, ni
+    formation continue.
+    Échelle logarithmique.`,
+
+  ips: (props, meta) => `
+    Indice de position sociale moyen des établissements de la commune à la
+    rentrée ${meta.enseignement_ips.annee}, écoles, collèges et lycées confondus.
+    L'IPS décrit l'origine sociale des élèves accueillis, pas les résultats ni
+    l'enseignement. Moyenne non pondérée par les effectifs, que la source ne
+    publie pas.
+    Les communes sans aucun établissement noté sortent du critère plutôt que
+    d'être mal notées.`,
+
+  petite_enfance: () => `
+    Crèches, micro-crèches, relais petite enfance et lieux d'accueil
+    enfants-parents présents dans la commune. Les accueils de loisirs et les
+    centres sociaux ne sont pas comptés.
+    Échelle logarithmique.`,
+
+  sports: () => `
+    Équipements sportifs recensés dans la commune ; les cinq types les plus
+    nombreux sont dans le détail du critère. Les sites de sports de nature
+    (randonnée, baignade, nautisme) ne sont pas comptés : ce sont des lieux, pas
+    des équipements de proximité.
+    Échelle logarithmique.`,
+
+  culture: () => `
+    Bibliothèques, cinémas, arts du spectacle, conservatoires, lieux d'exposition
+    et de patrimoine recensés dans la commune ; les cinq types les plus nombreux
+    sont dans le détail du critère.
+    Échelle logarithmique.`,
+};
+
+// The note is prose in a full width row, for the same reason the line lists are:
+// it has nothing to align with. `note:` keeps its data-group distinct from the
+// detail rows' so one (i) and one chevron never fight over the same key.
+function noteRow(key, props, meta) {
+  const note = NOTES[key];
+  if (!note) return "";
+
+  return `<tr class="row-note" data-group="note:${key}" hidden>
+            <td colspan="5"><p class="note-text">${note(props, meta)}</p></td>
+          </tr>`;
+}
+
 function detailRows(key, props) {
   const build = DETAILS[key];
   if (!build) return "";
@@ -221,10 +350,10 @@ function detailRows(key, props) {
       const classes = `row-detail${scored ? " is-scored" : ""}`;
       return wrap
         ? `<tr class="${classes}" data-group="${key}" hidden>
-             <td colspan="4"><span class="detail-label">${label}</span><span class="detail-value">${value}</span></td>
+             <td colspan="5"><span class="detail-label">${label}</span><span class="detail-value">${value}</span></td>
            </tr>`
         : `<tr class="${classes}" data-group="${key}" hidden>
-             <th>${label}</th><td class="num" colspan="3">${value}</td>
+             <th colspan="2">${label}</th><td class="num" colspan="3">${value}</td>
            </tr>`;
     })
     .join("");
@@ -265,24 +394,37 @@ function securityFootnote(props, total) {
     par le secret statistique et ${one ? "remplacé" : "remplacés"} par la moyenne départementale.`;
 }
 
-// A criterion's own row, followed by its detail rows when it has any.
-function criterionRows(criterion, props, weights) {
+// A criterion's own row, then its note, then its detail rows when it has any.
+// The chevron and the (i) answer different questions — what else this commune
+// has, and what the number means — so they are two controls, not one.
+function criterionRows(criterion, props, weights, meta) {
   const score = props[criterion.property];
   const muted = weights[criterion.key] === 0 ? " is-muted" : "";
 
+  // Bare text, not a span: `.criterion-label` is the sidebar slider's class and
+  // styling it here would silently restyle the popup too. The `<th>`'s own font
+  // is what the toggle inherits, so plain text is what matches it.
   const label = DETAILS[criterion.key]
     ? `<button type="button" class="detail-toggle" data-group="${criterion.key}" aria-expanded="false">${criterion.label}</button>`
     : criterion.label;
 
+  const info = NOTES[criterion.key]
+    ? `<button type="button" class="criterion-info" data-group="note:${criterion.key}"
+               aria-expanded="false" aria-label="Comment ${criterion.label} est mesuré"
+               title="Comment ${criterion.label} est mesuré">i</button>`
+    : "";
+
   return `
     <tr class="criterion-row${muted}">
       <th>${label}</th>
+      <td class="info">${info}</td>
       <td class="num">${formatRaw(criterion, props)}</td>
       <td class="bar">
         <span style="width:${score ?? 0}%;background:${rampColor(score)}"></span>
       </td>
       <td class="num score">${score == null ? NO_VALUE : scoreFormat.format(score)}</td>
     </tr>
+    ${noteRow(criterion.key, props, meta)}
     ${detailRows(criterion.key, props)}`;
 }
 
@@ -295,7 +437,7 @@ export function popupHtml(props, { weights, scope, scopeCount, meta }) {
   // columns size their numbers independently.
   const half = Math.ceil(CRITERIA.length / 2);
   const columns = [CRITERIA.slice(0, half), CRITERIA.slice(half)]
-    .map((group) => `<table>${group.map((c) => criterionRows(c, props, weights)).join("")}</table>`)
+    .map((group) => `<table>${group.map((c) => criterionRows(c, props, weights, meta)).join("")}</table>`)
     .join("");
 
   return `
@@ -316,50 +458,11 @@ export function popupHtml(props, { weights, scope, scopeCount, meta }) {
       <div class="popup-criteria">${columns}</div>
 
       <p class="popup-footnote">
-        Loyer : moyenne appartement et maison, en €/m². Équipements recensés sur
-        le territoire de la commune seule. 
-        Les transports font exception, l'unique source publiant
-        les coordonnées de ses points : lignes desservies à moins de
-        ${NEARBY_RADIUS_KM} km.
-        Sécurité : faits enregistrés en ${meta.securite.annee} sur le territoire de la
-        commune, pour 1 000 habitants.${securityFootnote(props, meta.securite.nb_indicateurs)}
-        Qualité de l'air : moyennes annuelles ${meta.air.annee} modélisées par Airparif,
-        moyennées sur la superficie de la commune ; l'indice rapporte le NO₂ et les
-        PM2.5 aux seuils recommandés par l'OMS (${meta.air.seuils_oms.no2} et
-        ${meta.air.seuils_oms.pm25} µg/m³), donc 1 vaut « au niveau recommandé ».
-        Espaces verts : part de la surface de la commune occupée en
-        ${meta.espaces_verts.annee} par des bois, espaces naturels, parcs et jardins
-        publics. Les terres agricoles et les jardins privés sont affichés mais non
-        comptés : verts sans être accessibles.
-        Bruit : part des habitants exposés en ${meta.bruit.annee} à un niveau
-        ${meta.bruit.indicateur} supérieur aux valeurs recommandées par l'OMS
-        (${meta.bruit.seuils_oms.route} dB pour la route,
-        ${meta.bruit.seuils_oms.fer} pour le fer,
-        ${meta.bruit.seuils_oms.air} pour l'aérien), ces trois trafics confondus.
-        Le ${meta.bruit.indicateur} est une moyenne annuelle qui majore la soirée
-        de 5 dB et la nuit de 10 dB : c'est une mesure de la gêne, pas du bruit
-        brut. Une douzaine de communes en bordure de la modélisation de Roissy ne
-        sont pas notées, faute d'une population modélisée représentative.
-        Qualité de l'enseignement : indice de position sociale moyen des
-        établissements de la commune à la rentrée ${meta.enseignement_ips.annee},
-        écoles, collèges et lycées confondus. L'IPS décrit l'origine sociale des
-        élèves accueillis, pas les résultats ni l'enseignement.
-        Ciel nocturne : lumière émise vers le ciel par la commune, mesurée par le
-        satellite ${meta.pollution_lumineuse.satellite} en
-        ${meta.pollution_lumineuse.annee} à ${meta.pollution_lumineuse.resolution_m} m
-        (${meta.pollution_lumineuse.passages.join(" et ")}), moyennée sur la
-        superficie de la commune. C'est la lumière qui part du sol, non la clarté
-        du ciel telle qu'on la voit : celle d'une commune voisine se diffuse
-        au-dessus de la vôtre sans jamais entrer dans ce chiffre. Les valeurs sous
-        ${meta.pollution_lumineuse.seuil_bruit} ${meta.pollution_lumineuse.unite}
-        sont ramenées à zéro par la source. Les deux passages ont lieu avant
-        l'heure d'extinction pratiquée par de nombreuses communes : la pratique
-        d'éclairage, détectée séparément sur ${meta.eclairage_nocturne.periode},
-        est indiquée dans le détail du critère.
-        Les scores des équipements suivent une échelle logarithmique : passer de 1
-        à 10 équipements pèse plus que de 300 à 3 000 ; le loyer, la sécurité,
-        l'air et le ciel nocturne, des rangs. Tous sont relatifs aux
-        ${numberFormat.format(scopeCount)} communes de « ${scope.label} » : un 100 est le meilleur de cette sélection, pas de la région.
+        Chaque critère explique sa mesure et ses limites derrière son
+        <span class="info-inline">i</span>.
+        Tous les scores sont relatifs aux ${numberFormat.format(scopeCount)}
+        communes de « ${scope.label} » : un 100 est le meilleur de cette
+        sélection, pas de la région.
       </p>
     </div>
   `;

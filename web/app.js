@@ -109,10 +109,8 @@ function readMetadata(communes) {
 
 function start(map, communes) {
   const meta = readMetadata(communes);
-  // Wide enough for the two criterion columns render.js lays out, but never
-  // wider than the screen: MapLibre writes this straight onto style.maxWidth,
-  // so a responsive CSS value does the mobile case without a media query.
-  const popup = new Popup({ closeButton: true, closeOnClick: true, maxWidth: "min(680px, 92vw)" });
+
+  const popup = new Popup({ closeButton: true, closeOnClick: true, maxWidth: "min(720px, 96vw)" });
   const rankingList = document.getElementById("ranking-list");
   const rankingCount = document.getElementById("ranking-count");
 
@@ -159,7 +157,7 @@ function start(map, communes) {
       });
     }
 
-    const toggles = [...element.querySelectorAll(".detail-toggle")];
+    const toggles = [...element.querySelectorAll(".detail-toggle, .criterion-info")];
 
     for (const toggle of toggles) {
       toggle.addEventListener("click", () => {
@@ -170,7 +168,7 @@ function start(map, communes) {
         for (const other of toggles) {
           const show = other === toggle && !open;
           other.setAttribute("aria-expanded", String(show));
-          for (const row of element.querySelectorAll(`.row-detail[data-group="${other.dataset.group}"]`)) {
+          for (const row of element.querySelectorAll(`tr[data-group="${other.dataset.group}"]`)) {
             row.hidden = !show;
           }
         }
