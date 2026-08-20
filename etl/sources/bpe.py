@@ -20,6 +20,7 @@ Known limitations, worth remembering before scoring on these numbers:
   - equipments are counted, not their capacity (size).
 """
 
+import json
 import logging
 import zipfile
 
@@ -34,6 +35,8 @@ logger = logging.getLogger(__name__)
 
 BPE_URL = "https://www.insee.fr/fr/statistiques/fichier/8217527/DS_BPE_CSV_FR.zip"
 DATA_MEMBER = "DS_BPE_2025_data.csv"
+# Shipped in the same zip, and the only place the type codes are spelled out.
+METADATA_MEMBER = "DS_BPE_2025_metadata.csv"
 
 CACHE_NAME = "bpe_2025.zip"
 
@@ -68,6 +71,13 @@ TYPE_CRITERIA = {
 # does carry are SNCF/RER only, no metro, no tram.
 
 CRITERION_COLUMNS = list(SDOM_CRITERIA) + list(TYPE_CRITERIA)
+
+# criterion column -> the column naming its equipment types, for the popup.
+# A count says a commune has 106 sports equipments and not whether they are
+# gyms or boules pitches. Keyed on the nb_* column so the list reads its
+# sous-domaines out of SDOM_CRITERIA and cannot drift from what is scored.
+LISTED_CRITERIA = {"nb_sports": "types_sports", "nb_culture": "types_culture"}
+LIST_COLUMNS = list(LISTED_CRITERIA.values())
 
 
 def _read_idf_leaf_rows() -> pl.DataFrame:
@@ -126,23 +136,105 @@ def _criterion_counts(rows: pl.DataFrame) -> pl.DataFrame:
     return rows.group_by("code_insee").agg(aggregations)
 
 
+def _type_labels() -> dict[str, str]:
+    """FACILITY_TYPE code -> its human label ("F303" -> "Cinema").
+
+    The labels live in a second member of the same zip, which nothing read until
+    the popup needed to name a type. It is utf-8, like the data member: reading
+    it as latin-1 succeeds and silently yields "BibliothA¨que".
+    """
+    with zipfile.ZipFile(cached_download(BPE_URL, CACHE_NAME)) as archive:
+        raw = pl.read_csv(
+            archive.read(METADATA_MEMBER),
+            separator=";",
+            schema_overrides={"COD_MOD": pl.Utf8},
+        )
+
+    labels = raw.filter(pl.col("COD_VAR") == "FACILITY_TYPE")
+    return dict(zip(labels["COD_MOD"], labels["LIB_MOD"]))
+
+
+def _type_lists(rows: pl.DataFrame) -> pl.DataFrame:
+    """One column per entry of LISTED_CRITERIA: the commune's equipment types
+    and their counts, most numerous first, as a JSON string.
+
+    Written as a string here, but it does not reach the browser as one: GDAL
+    recognises a string field whose content parses as JSON and writes out a real
+    array. Same technique as ips_schools, and render.js reads either shape.
+
+    The whole list is emitted, not the top few: what a popup shows is the
+    frontend's business, and shipping it whole is what lets render.js say how
+    many types it is not showing without a second column to count them.
+    """
+    labels = _type_labels()
+
+    missing = sorted(set(rows["FACILITY_TYPE"].unique()) - set(labels))
+    if missing:
+        raise ValueError(f"BPE types with no label in {METADATA_MEMBER}: {missing}")
+
+    named = rows.with_columns(pl.col("FACILITY_TYPE").replace_strict(labels).alias("label"))
+
+    per_column: dict[str, dict[str, list]] = {}
+    for criterion, column in LISTED_CRITERIA.items():
+        counts = (
+            named.filter(pl.col("FACILITY_SDOM").is_in(SDOM_CRITERIA[criterion]))
+            .group_by("code_insee", "label")
+            .agg(pl.col("OBS_VALUE").sum())
+            # Most numerous first, ties broken by label: an arbitrary order here
+            # would churn the committed geojson between runs.
+            .sort(["code_insee", "OBS_VALUE", "label"], descending=[False, True, False])
+        )
+
+        grouped: dict[str, list] = {}
+        for code_insee, label, value in counts.iter_rows():
+            grouped.setdefault(code_insee, []).append([label, value])
+        per_column[column] = grouped
+
+    codes = sorted(set().union(*(grouped for grouped in per_column.values())))
+    lists = pl.DataFrame(
+        {
+            "code_insee": codes,
+            **{
+                column: [json.dumps(grouped.get(code, []), ensure_ascii=False) if code in grouped else "" for code in codes]
+                for column, grouped in per_column.items()
+            },
+        }
+    )
+
+    logger.info(
+        "listed equipment types for %s",
+        ", ".join(f"{len(grouped)} communes on {column}" for column, grouped in per_column.items()),
+    )
+    return lists
+
+
 def fetch() -> pl.DataFrame:
     """Return a DataFrame with columns: code_insee, one nb_* count per curated
-    criterion, and one bpe_<sous-domaine> raw count per BPE sous-domaine.
+    criterion, the equipment types behind the criteria in LISTED_CRITERIA, and
+    one bpe_<sous-domaine> raw count per BPE sous-domaine.
     """
     rows = _read_idf_leaf_rows()
 
-    result = _criterion_counts(rows).join(_sous_domaine_counts(rows), on="code_insee", how="left")
+    result = (
+        _criterion_counts(rows)
+        .join(_sous_domaine_counts(rows), on="code_insee", how="left")
+        .join(_type_lists(rows), on="code_insee", how="left")
+    )
 
     # Unlike rent, a missing value here is a real zero, not an unknown: a
     # commune with no cinema simply has no row in the source file.
-    counts = [c for c in result.columns if c != "code_insee"]
+    counts = [c for c in result.columns if c != "code_insee" and c not in LIST_COLUMNS]
 
     # The pivot emits sous-domaine columns in hash order; sort them so the
     # committed geojson doesn't churn between runs.
-    ordered = ["code_insee", *CRITERION_COLUMNS, *sorted(c for c in counts if c.startswith("bpe_"))]
+    ordered = ["code_insee", *CRITERION_COLUMNS, *LIST_COLUMNS, *sorted(c for c in counts if c.startswith("bpe_"))]
 
-    result = result.with_columns(pl.col(counts).fill_null(0).cast(pl.Int32)).select(ordered).sort("code_insee")
+    result = (
+        result.with_columns(pl.col(counts).fill_null(0).cast(pl.Int32))
+        .with_columns(pl.col(LIST_COLUMNS).fill_null(""))
+        .select(ordered)
+        .sort("code_insee")
+    )
     logger.info("fetched %s over %d curated criteria", logs.shape(result), len(CRITERION_COLUMNS))
     return result
 
@@ -151,6 +243,9 @@ def build(ref: gpd.GeoDataFrame) -> pd.DataFrame:
     """Counts inside the commune, and only inside it.
     """
     counts = insee.by_commune(fetch()).reindex(ref.index)
+    # A commune absent from the source file has no equipment at all, so it gets
+    # an empty list rather than a NaN render.js would have to parse.
+    counts[LIST_COLUMNS] = counts[LIST_COLUMNS].fillna("")
 
     logger.info(
         "built %s, %d communes with no shop of their own, %d with no health equipment",

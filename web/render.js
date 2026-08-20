@@ -109,7 +109,9 @@ const IPS_LEVELS = [
 // figure the score is built from.
 const MAX_SCHOOLS = 4;
 
-function schoolList(value) {
+// Shared by the school lists and the equipment-type lists : same shape, same
+// GDAL caveat, same "" for a commune with none.
+function listValue(value) {
   if (!value) return [];
   return Array.isArray(value) ? value : JSON.parse(value);
 }
@@ -118,7 +120,7 @@ function ipsRows(props) {
   const rows = [];
 
   for (const { key, label } of IPS_LEVELS) {
-    const schools = schoolList(props[key]);
+    const schools = listValue(props[key]);
     if (schools.length === 0) continue;
 
     const mean = schools.reduce((total, [, ips]) => total + ips, 0) / schools.length;
@@ -137,6 +139,27 @@ function ipsRows(props) {
   }
 
   return rows;
+}
+
+// BPE counts equipments by type and never names them, so this is as close to
+// "what is actually there" as the source gets : the types a commune has, most
+// numerous first. The ETL ships the whole list, so the cap is display only and
+// the last row can say how much of it is not shown.
+const MAX_TYPES = 5;
+
+function typeRows(column) {
+  return (props) => {
+    const types = listValue(props[column]);
+    const rows = types.slice(0, MAX_TYPES).map(([label, count]) => ({
+      label: escapeHtml(label),
+      value: numberFormat.format(count),
+    }));
+
+    const hidden = types.length - MAX_TYPES;
+    if (hidden > 0) rows.push({ label: `+ ${numberFormat.format(hidden)} autres types`, value: "", wrap: true });
+
+    return rows;
+  };
 }
 
 // One row per entry, each reading a raw column and sharing a unit unless it
@@ -161,6 +184,11 @@ const DETAILS = {
   // and repeating it on all four rows only widens the column.
   espaces_verts: unitRows(GREEN_FAMILIES, "%"),
   ips: ipsRows,
+
+  // No unit and no `scored` on these : the criterion row above carries both,
+  // and the types listed sum to exactly the count it shows.
+  sports: typeRows("types_sports"),
+  culture: typeRows("types_culture"),
 
   // The radiance above is a 2018 satellite pass at 23h40.
   pollution_lumineuse: (props) => [

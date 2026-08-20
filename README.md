@@ -68,6 +68,10 @@ Counted **inside the commune**, then scaled logarithmically: `log1p(count)`, min
 
 The 7 BPE *domaines* are too coarse to score on directly, so the criteria are cut from its 28 *sous-domaines* instead. Excluded on purpose: domaine A (86 % of it is builders and hairdressers), tourism, outdoor sports sites, universities and adult education, and social services (which are not medical access). Full reasoning at the top of `etl/sources/bpe.py`.
 
+**Sport and Culture name what they count.** A count alone says a commune has X sports equipments and not whether they are gyms or boules pitches, so both criteria expand in the popup into their **five most numerous equipment types**, with a `+ N autres types` line for the rest. *.
+
+> **BPE names types, never facilities.** There is no cinema name, no gym name and no address anywhere in it, in this file or in the geolocated variant: it publishes how many equipments of each a commune has. 
+
 **Enseignement** is the three school-age sous-domaines and no more: C1 *premier degré* (maternelles, primaires, élémentaires), C2 *second degré premier cycle* (collèges) and C3 *second degré second cycle* (lycées général, professionnel and agricole), not post-bac. Everything above the lycée is left out, C4 supérieur non-universitaire, C5 universitaire, C6 formation continue, C7 résidences and restaurants universitaires.
 
 #### Social composition of schools (IPS)
@@ -281,7 +285,7 @@ uv sync
 uv run python -m etl.pipeline
 ```
 
-Output: `data/processed/communes_scores.geojson` — **1 285 features, 71 properties, ~4.7 MB**, committed to the repo so the frontend works without running the ETL. The first run downloads ~277 MB into `data/raw/`.
+Output: `data/processed/communes_scores.geojson` — **1 285 features, 73 properties, ~5.1 MB**, committed to the repo so the frontend works without running the ETL. The first run downloads ~277 MB into `data/raw/`.
 
 Three conventions hold the pipeline together:
 
