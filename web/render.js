@@ -6,6 +6,7 @@ import { CRITERIA, NEARBY_RADIUS_KM } from "./sliders.js";
 import { compositeScore } from "./scoring.js";
 import { rampColor } from "./colors.js";
 import { zonesOf } from "./scopes.js";
+import { MODES } from "./network.js";
 
 const NO_VALUE = "—";
 
@@ -485,4 +486,50 @@ export function rankingHtml(ranked, { weights, selected }) {
 
 export function formatCount(value) {
   return numberFormat.format(value);
+}
+
+/**
+ * The popup for a transport stop. Not a commune : no scores, no criteria, no
+ * zone links, just what stops here.
+ *
+ * It reuses `.commune-popup` and keeps <header> as its first child on purpose.
+ * app.js's wirePopup rehomes MapLibre's close button into
+ * `.commune-popup header`, and style.css makes that header sticky ; a root
+ * class of its own would mean duplicating both rules.
+ *
+ * `lignes` arrives as "mode:shortName" so a line can be shown in its own
+ * colour and grouped under its own mode. `colors` is the map lineColors()
+ * builds from the traces file, and `communeName` is looked up by app.js,
+ * which holds the communes the stop's code_insee refers to.
+ */
+export function stopPopupHtml(props, { communeName, colors }) {
+  const lignes = Array.isArray(props.lignes) ? props.lignes : JSON.parse(props.lignes);
+  const modes = Array.isArray(props.modes) ? props.modes : JSON.parse(props.modes);
+
+  const groups = MODES.filter(({ key }) => modes.includes(key)).map(({ key, label, color }) => {
+    const pills = lignes
+      .filter((line) => line.startsWith(`${key}:`))
+      .map((line) => {
+        const short = line.slice(key.length + 1);
+        return `<span class="line-pill" style="background:${colors.get(line) ?? color}">${escapeHtml(short)}</span>`;
+      })
+      .join("");
+
+    return `
+      <tr class="stop-mode">
+        <th>${label}</th>
+        <td>${pills}</td>
+      </tr>`;
+  });
+
+  return `
+    <div class="commune-popup stop-popup">
+      <header>
+        <h3>${escapeHtml(props.nom)}</h3>
+        <p class="popup-meta">${escapeHtml(communeName ?? props.code_insee)}</p>
+      </header>
+
+      <table class="stop-lines">${groups.join("")}</table>
+    </div>
+  `;
 }

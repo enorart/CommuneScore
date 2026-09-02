@@ -8,7 +8,16 @@ import { NEARBY_RADIUS_KM, initialWeights, renderSliders } from "./sliders.js";
 import { REGION_SCOPE_ID, buildScopes, renderScopeSelect, siblingZone } from "./scopes.js";
 import { applyScores, compositeScore } from "./scoring.js";
 import { fillColorExpression, renderLegend } from "./colors.js";
-import { formatCount, popupHtml, rankingHtml } from "./render.js";
+import { formatCount, popupHtml, rankingHtml, stopPopupHtml } from "./render.js";
+import {
+  STOP_URL,
+  TRACE_URL,
+  addNetworkLayers,
+  applyModes,
+  applyScope,
+  lineColors,
+  renderNetworkToggles,
+} from "./network.js";
 import { bounds, centroid } from "./geometry.js";
 
 // Vite's production bundler (Rolldown) emits maplibre-gl's worker file verbatim
@@ -29,6 +38,7 @@ const SOURCE_ATTRIBUTION = [
   'Loyers : <a href="https://www.data.gouv.fr/datasets/carte-des-loyers-indicateurs-de-loyers-dannonce-par-commune-en-2025/" target="_blank" rel="noopener">ANIL 2025</a>',
   'Équipements : <a href="https://www.insee.fr/fr/statistiques/8217527" target="_blank" rel="noopener">INSEE BPE 2025</a>',
   'Réseau ferré : <a href="https://data.iledefrance-mobilites.fr/explore/dataset/emplacement-des-gares-idf/" target="_blank" rel="noopener">Île-de-France Mobilités</a>',
+  'Tracés des lignes : <a href="https://www.data.gouv.fr/datasets/traces-du-reseau-de-transport-ferre-dile-de-france/" target="_blank" rel="noopener">Île-de-France Mobilités 2026</a>',
   'Contours et population : <a href="https://geoservices.ign.fr/adminexpress" target="_blank" rel="noopener">IGN ADMIN EXPRESS COG</a>',
   'Espaces verts : <a href="https://data.iledefrance.fr/explore/dataset/mos-occupation-du-sol-2025-and-2021-en-79-postes-de-la-region-ile-de-france/" target="_blank" rel="noopener">L\'Institut Paris Region — MOS 2025</a>',
   'IPS des établissements : <a href="https://data.education.gouv.fr/explore/dataset/fr-en-ips-ecoles-ap2022/" target="_blank" rel="noopener">Ministère de l\'Éducation nationale 2024-2025</a>',
@@ -37,6 +47,7 @@ const SOURCE_ATTRIBUTION = [
   'Éclairage nocturne : <a href="https://www.data.gouv.fr/datasets/cartographie-nationale-des-pratiques-declairage-nocturne" target="_blank" rel="noopener">Cerema, DarkSkyLab et OFB, 2026</a> (ODbL)',
   'Délinquance : <a href="https://www.data.gouv.fr/datasets/bases-statistiques-communale-departementale-et-regionale-de-la-delinquance-enregistree-par-la-police-et-la-gendarmerie-nationales" target="_blank" rel="noopener">SSMSI 2025</a> (ODbL v2)',
   `Qualité de l'air : <a href="https://www.data.gouv.fr/datasets/concentrations-moyennes-annuelles-des-polluants-reglementes-en-ile-de-france" target="_blank" rel="noopener">Airparif 2025</a> (ODbL)`,
+  'Arrêts et lignes : <a href="https://www.data.gouv.fr/datasets/arrets-et-lignes-associees" target="_blank" rel="noopener">Île-de-France Mobilités 2026</a> (ODbL)',
   "Licence Ouverte / Etalab 2.0",
 ];
 
@@ -111,6 +122,10 @@ function start(map, communes) {
   const meta = readMetadata(communes);
 
   const popup = new Popup({ closeButton: true, closeOnClick: true, maxWidth: "min(720px, 96vw)" });
+
+  // Its own instance, not the commune one: clicking a stop must not evict the
+  // score breakdown the user opened it to compare against.
+  const stopPopup = new Popup({ closeButton: true, closeOnClick: true, maxWidth: "min(320px, 90vw)" });
   const rankingList = document.getElementById("ranking-list");
   const rankingCount = document.getElementById("ranking-count");
 
@@ -125,6 +140,14 @@ function start(map, communes) {
   let scope = scopes[0];
   let inScope = communes.features;
   let selected = null;
+
+  // The transport overlay: which modes are switched on, and the two files
+  // behind them once they have been fetched. Both start empty, and the fetch
+  // happens on the first toggle rather than at startup : 5 MB of network has
+  // no business delaying the choropleth, which is what the page is for.
+  const modes = new Set();
+  let lineColor = new Map();
+  let networkLoading = null;
 
   // What render.js needs to draw the popup and the ranking.
   const view = () => ({ weights, scope, scopeCount: inScope.length, selected, meta });
@@ -179,6 +202,46 @@ function start(map, communes) {
         instance.setLngLat(instance.getLngLat());
       });
     }
+  }
+
+  // Fetched once, on the first toggle. Guarded by the promise itself, since a
+  // second click during a 5 MB download would otherwise add the layers twice.
+  async function loadNetwork() {
+    if (networkLoading) return networkLoading;
+
+    networkLoading = (async () => {
+      const [traces, stops] = await Promise.all(
+        [TRACE_URL, STOP_URL].map(async (url) => (await fetch(url)).json())
+      );
+      lineColor = lineColors(traces);
+      addNetworkLayers(map, traces, stops, scope);
+    })();
+
+    return networkLoading;
+  }
+
+  async function toggleModes() {
+    if (modes.size > 0) await loadNetwork();
+    applyModes(map, modes);
+
+    // The zone may have moved while the files were in flight, and the layers
+    // were built with whatever scope was current when the fetch started.
+    applyScope(map, scope);
+  }
+
+  function selectStop(props, lngLat) {
+    const commune = byCode.get(props.code_insee);
+    stopPopup
+      .setLngLat(lngLat)
+      .setHTML(stopPopupHtml(props, { communeName: commune?.properties.name, colors: lineColor }))
+      .addTo(map);
+
+    // Same rehoming the commune popup needs: MapLibre appends its close button
+    // to the scroll container, where a long line list scrolls it out of reach.
+    const element = stopPopup.getElement();
+    const closeButton = element.querySelector(".maplibregl-popup-close-button");
+    const header = element.querySelector(".commune-popup header");
+    if (closeButton && header) header.append(closeButton);
   }
 
   function renderRanking() {
@@ -238,6 +301,7 @@ function start(map, communes) {
       popup.remove();
     }
 
+    applyScope(map, scope);
     refresh();
   }
 
@@ -262,9 +326,20 @@ function start(map, communes) {
   const scopeSelect = renderScopeSelect(document.getElementById("scope"), scopes, selectScope);
   renderSliders(document.getElementById("sliders"), weights, refresh);
   renderLegend(document.getElementById("legend"));
+  renderNetworkToggles(document.getElementById("network"), modes, toggleModes);
   rescope(scope);
 
+  map.on("click", "reseau-arrets", (event) => {
+    // The commune layer is underneath and gets the same click. Stopping it
+    // here keeps a stop from also moving the comparison zone, which is what
+    // clicking a faded commune does.
+    event.preventDefault();
+    selectStop(event.features[0].properties, event.lngLat);
+  });
+
   map.on("click", "communes-fill", (event) => {
+    if (event.defaultPrevented) return;
+
     const feature = byCode.get(event.features[0].properties.code_insee);
     if (!feature) return;
 
@@ -285,6 +360,13 @@ function start(map, communes) {
   // clicking *this* commune do", and moving between two communes never re-fires
   // mouseenter.
   map.on("mousemove", "communes-fill", (event) => {
+    // The stop layer's own mouseenter would be overwritten by this handler on
+    // the very next mousemove, so the stop is asked about here instead.
+    if (map.getLayer("reseau-arrets") && map.queryRenderedFeatures(event.point, { layers: ["reseau-arrets"] }).length) {
+      map.getCanvas().style.cursor = "pointer";
+      return;
+    }
+
     const feature = byCode.get(event.features[0].properties.code_insee);
     const inside = feature && scope.matches(feature.properties);
     map.getCanvas().style.cursor = feature && (inside || siblingZone(scope, feature.properties)) ? "pointer" : "";

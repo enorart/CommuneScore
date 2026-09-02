@@ -1,14 +1,19 @@
 """Orchestration. Builds the reference table, asks every source for the columns
-it contributes, joins them on code_insee and writes the one file the frontend
+it contributes, joins them on code_insee and writes the files the frontend
 loads.
 
 Nothing here knows what any source's data means: that lives in etl/sources/,
 one module per source, all with the same shape (see etl/sources/__init__.py).
 Adding a source is writing that module and adding it to SOURCES below.
 
-Output: data/processed/communes_scores.geojson, raw values only. Nothing is
-scored here, because a 0-100 score only means something relative to a set of
-communes, and the user picks that set in the browser (see web/scoring.js).
+Main output: data/processed/communes_scores.geojson, raw values only. Nothing
+is scored here, because a 0-100 score only means something relative to a set
+of communes, and the user picks that set in the browser (see web/scoring.js).
+
+Then the transport network overlay, data/processed/reseau_{traces,arrets}.geojson,
+from etl/network/. It carries no scores and joins onto nothing,
+but it runs here rather than from a command of its
+own. See etl/network/__init__.py.
 """
 
 import json
@@ -18,6 +23,7 @@ from pathlib import Path
 
 import geopandas as gpd
 
+from etl import network
 from etl.common import communes_ref, logs, neighbourhood
 from etl.sources import (
     airparif,
@@ -108,6 +114,10 @@ def main() -> None:
         )
 
     _write_output(communes)
+
+    logger.info("building the transport network overlay")
+    network.write(ref)
+
     logger.info("pipeline finished in %.1fs", time.perf_counter() - started)
 
 

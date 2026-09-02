@@ -1,16 +1,22 @@
-// Copies the ETL pipeline's output into web/public so Vite serves it.
-// data/processed/communes_scores.geojson is the single source of truth
-// (committed by .github/workflows/refresh-data.yml); this script just
-// mirrors it into the frontend's static assets before dev/build.
+// Copies the ETL's output into web/public so Vite serves it.
+// data/processed/ is the single source of truth (committed by
+// .github/workflows/refresh-data.yml); this script just mirrors it into the
+// frontend's static assets before dev/build.
+//
+// communes_scores.geojson comes from `python -m etl.pipeline`, the two
+// reseau_* files from `python -m etl.network`.
 import { copyFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const src = join(__dirname, "..", "..", "data", "processed", "communes_scores.geojson");
+const FILES = ["communes_scores.geojson", "reseau_traces.geojson", "reseau_arrets.geojson"];
+
+const srcDir = join(__dirname, "..", "..", "data", "processed");
 const destDir = join(__dirname, "..", "public", "data");
-const dest = join(destDir, "communes_scores.geojson");
 
 mkdirSync(destDir, { recursive: true });
-copyFileSync(src, dest);
-console.log(`Synced ${src} -> ${dest}`);
+for (const file of FILES) {
+  copyFileSync(join(srcDir, file), join(destDir, file));
+  console.log(`Synced ${file} -> ${destDir}`);
+}

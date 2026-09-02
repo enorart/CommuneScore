@@ -49,6 +49,9 @@ export function buildScopes(features) {
     id: `${COURONNE_SCOPE}:${key}`,
     label,
     group: "Région",
+    // Also read by network.js, which cannot call matches() : it has to build a
+    // MapLibre expression rather than run a predicate.
+    departments,
     matches: (props) => departments.includes(props.code_departement),
   }));
 

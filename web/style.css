@@ -865,6 +865,104 @@ input[type="range"]:focus-visible {
   color: var(--ink-soft);
 }
 
+/* ---------- Network overlay ---------- */
+
+/* Stacked above the legend in the same bottom-left corner: both explain what
+   is drawn on the map, neither belongs in the sidebar, which is about
+   scoring. Sharing .legend-title keeps the two headings the same voice. */
+#network {
+  position: absolute;
+  left: 1.25rem;
+  bottom: 6.4rem;
+  width: 190px;
+  padding: 0.7rem 0.8rem 0.6rem;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  box-shadow: 0 2px 10px rgb(20 23 28 / 0.09);
+}
+
+.network-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+/* Same control as .zone-link, with the mode's own colour taking over when it
+   is on : the pill then matches the lines it just drew. */
+.network-toggle {
+  padding: 0.15rem 0.42rem;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--paper);
+  font: inherit;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.network-toggle:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+
+.network-toggle:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.network-toggle[aria-pressed="true"] {
+  border-color: var(--mode-color);
+  background: var(--mode-color);
+  color: #ffffff;
+}
+
+/* ---------- Stop popup ---------- */
+
+/* Reuses .commune-popup for its sticky header and close button; everything
+   below the header is its own. */
+.stop-lines {
+  width: 100%;
+  margin-top: 0.6rem;
+  border-collapse: collapse;
+}
+
+.stop-mode th {
+  padding: 0.25rem 0.5rem 0.25rem 0;
+  font-family: var(--mono);
+  font-size: 0.63rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.stop-mode td {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  padding: 0.2rem 0;
+}
+
+.line-pill {
+  min-width: 1.35rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  line-height: 1.45;
+  text-align: center;
+  color: #ffffff;
+  /* IDFM line colours run from near-black to pale green, and the pale ones
+     lose white text. A dark rim keeps every pill legible without having to
+     compute a contrast-aware text colour per line. */
+  box-shadow: inset 0 0 0 1px rgb(20 23 28 / 0.18);
+}
+
 /* ---------- Mobile ---------- */
 
 @media (max-width: 860px) {
@@ -902,6 +1000,15 @@ input[type="range"]:focus-visible {
      legend at this width. */
   #legend {
     top: 0.75rem;
+    bottom: auto;
+    left: 0.75rem;
+    width: 160px;
+  }
+
+  /* Follows the legend up, and sits under it: the toggles wrap to three rows
+     at 160px, so a fixed offset from the top would overlap at some widths. */
+  #network {
+    top: 6.4rem;
     bottom: auto;
     left: 0.75rem;
     width: 160px;

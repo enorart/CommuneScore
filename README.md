@@ -35,6 +35,7 @@ That information exists. INSEE, ANIL, Île-de-France Mobilités and the Ministry
 3. **Read the map.** Darker = better fit for *your* weights. The ranking beneath the sliders lists the best communes, each with a small "spine" of bars showing its profile at a glance : a commune strong everywhere and one strong in two things can share the same composite score.
 4. **Click a commune.** The popup breaks the score down criterion by criterion, showing the raw value next to each score. Each criterion carries an **ⓘ** explaining what its number measures and where it misleads, and nine of them also expand — via the chevron on the label — into the detail behind the figure: rent's four typologies, the lines reachable, the crime families, the four pollutants, and so on. One panel is open at a time, so the popup never outgrows the map.
 5. **Zoom in on a zone.** In the popup, the commune's département and intercommunalité are clickable : comparing 30 neighbouring communes tells you far more than comparing 1 285.
+6. **Switch on the network.** Bottom left of the map, five toggles draw the RER, trains, métro, trams and buses : the line traces in Île-de-France Mobilités' own colours, and every stop in the region. Click a stop to see what calls there.
 
 ---
 
@@ -49,6 +50,8 @@ All sources are French open data, published per commune.
 | Shops, health, schools, childcare, sport, culture | INSEE — Base permanente des équipements (BPE) via data.gouv.fr                                           | 2025 | Licence Ouverte / Etalab 2.0 |
 | Social composition of schools (IPS) | Ministère de l'Éducation nationale (DEPP) — Indices de position sociale des écoles, collèges et lycées, via data.education.gouv.fr | 2024-2025 | Licence Ouverte / Etalab 2.0 |
 | Rail stations and lines | Île-de-France Mobilités — Gares et stations du réseau ferré via data.gouve.fr                            | 2025 | Licence Ouverte v2.0 (Etalab) |
+| Line traces (map overlay) | Île-de-France Mobilités — Tracés du réseau de transport ferré d'Île-de-France, via data.gouv.fr | 2026 | Licence Ouverte v2.0 (Etalab) |
+| Stops (map overlay) | Île-de-France Mobilités — Arrêts et lignes associées, via data.gouv.fr | 2026 | **ODbL** |
 | Recorded crime | SSMSI — Base statistique communale de la délinquance via data.gouv.fr                                    | 2025 | **ODbL v2** |
 | Air quality | Airparif — Concentrations moyennes annuelles modélisées, via its WCS (Web Coverage Service, raster datas | 2025 | **ODbL** |
 | Noise | Airparif & Bruitparif — Cartographie air-bruit, via bruitparif.fr                                        | 2024 | Licence Ouverte / Etalab 2.0 |
@@ -248,7 +251,10 @@ etl/
   sources/                # one module per data source, all the same shape (see its __init__.py)
     rent.py  bpe.py  idfm_gares.py  ssmsi.py  airparif.py  mos.py
     ips_schools.py  bruit.py  radiance.py  extinctions.py
-  pipeline.py             # orchestration only: ref + every source -> communes_scores.geojson
+  pipeline.py             # orchestration only: ref + every source -> the output files
+  network/                # the map overlay: no scores, its own contract, no command
+    traces.py  arrets.py  # rail line geometry, and every stop in the region
+    __init__.py           # write(ref) -> reseau_traces + reseau_arrets, called by pipeline
 
 web/
   index.html  style.css
@@ -258,6 +264,7 @@ web/
   scopes.js             # the scope comparison sets
   render.js             # every HTML string (popup, ranking rows, spine bars)
   colors.js             # the single colour scale, shared by map, bars and legend
+  network.js            # the transport overlay: mode toggles, layers, zone fading
   geometry.js           # bounds and centroid, for framing and placing popups
   scripts/sync-data.mjs # copies the GeoJSON into web/public/ before dev/build
 
@@ -285,7 +292,15 @@ uv sync
 uv run python -m etl.pipeline
 ```
 
-Output: `data/processed/communes_scores.geojson` — **1 285 features, 73 properties, ~5.1 MB**, committed to the repo so the frontend works without running the ETL. The first run downloads ~277 MB into `data/raw/`.
+One command, three files, all committed to the repo so the frontend works without running the ETL:
+
+| Output | Features | Size |
+|---|---|---|
+| `data/processed/communes_scores.geojson` | 1 285 communes, 73 properties | ~5.1 MB |
+| `data/processed/reseau_traces.geojson` | 1 673 line segments | ~0.5 MB |
+| `data/processed/reseau_arrets.geojson` | 19 505 stops | ~4.6 MB |
+
+The first run downloads ~294 MB into `data/raw/`. The two `reseau_*` files are the [transport network overlay](#the-transport-network-overlay); they carry no scores, and `pipeline.main()` builds them after the scores rather than from a command of their own.
 
 Three conventions hold the pipeline together:
 
@@ -312,6 +327,27 @@ LOG_LEVEL=DEBUG   uv run python -m etl.pipeline
 Every download goes through `cached_download(url, filename)` in `etl/common/cache.py`, which fetches into `data/raw/` once and never again. **Delete one file in `data/raw/` to force a re-fetch of just that source.**
 
 **Note on Paris:** commune `75056` is replaced by its 20 arrondissements (`75101`–`75120`) everywhere. Every Île-de-France source codes Paris by arrondissement, and IGN publishes matching geometry *and* population. Sources that carry both `75056` and the arrondissements have `75056` dropped, or everything in Paris would count twice.
+
+### The transport network overlay
+
+Five toggles at the bottom left of the map draw the network: **RER, Train, Métro, Tram, Bus**. Line traces in Île-de-France Mobilités' own colours, every stop in the region, and a popup on each stop naming the lines that call there.
+
+**It is an overlay, not a criterion.** Nothing here is scored, nothing joins onto the reference table and the Transport slider does not read it — that criterion still counts distinct lines within 1 km of a commune, from a different IDFM dataset. Two things that look like the same data are not: the scored source is 996 station *zones de correspondance*, this one is 19 505 stop points and 1 673 line segments.
+
+It carries no scores and joins onto nothing, so it cannot ride the pipeline's `SOURCES` loop, whose `build()` returns columns indexed by `code_insee`. `etl/network/` gets its own contract for that. It does **not** get its own command: `pipeline.main()` calls it once the scores are written, on the reference table it has already built, so `uv run python -m etl.pipeline` still produces every file the frontend loads. Two commands would be two things to remember and two things for the refresh workflow to forget — and a stale overlay is invisible until someone switches a mode on and finds a line that no longer exists.
+
+Output: `data/processed/reseau_traces.geojson` (1 673 segments, 0.5 MB) and `reseau_arrets.geojson` (19 505 stops, 4.6 MB). Both are fetched by the browser **only when a mode is first switched on** — 5 MB has no business delaying the choropleth, which is what the page is for.
+
+**Bus line traces were measured and rejected.** IDFM publishes them in the same shape as the rail ones, and they are 1 929 lines, 107 MB raw, still 31.6 MB after simplifying to 20 m and splitting per département — against 5 MB for the whole repository before this. They are also 40 000 km of trace that resolves into an unreadable hairball at any zoom wide enough to see a département. Bus *stops* are shipped, because they are 18 870 of the 19 505 and they are what a rider stands at.
+
+**Outside the comparison zone the network fades rather than disappearing.** Same 0.78/0.5 grammar the choropleth already uses for an out-of-scope commune, and for the same reason: a métro line that stopped dead at the Pantin boundary would read as a network that ends there. The ETL tags every feature with the département and intercommunalité it belongs to, which are exactly the two fields a scope is defined over, so the fade is one comparison per feature rather than a commune code tested against a list of 1 285.
+
+Two things about the stop data are worth knowing before touching `etl/network/arrets.py`:
+
+- **IDFM's stop ids are per line, not per place.** A place arrives as one point per line calling there — Porte d'Orléans is 24 of them, Gare de l'Est 18. Drawn as they come they are overlapping circles of which a click reaches exactly one, and its popup names one line out of the dozen. They are clustered back together by name *and* proximity, at 150 m: the median gap between two same-name stops in a commune is 50 m, but the widest is 2.6 km, because a commune can have a "Mairie" bus stop at each end.
+- **The file codes Paris as `75056`**, all 3 433 of its stops, where the rest of the project splits Paris by arrondissement. Unlike `extinctions.py`, which meets the same trap without coordinates, these rows can simply be placed: the commune comes from a point-in-polygon join against `communes_ref`, never from the file's own `Code_insee`. That also fixes 182 non-Paris stops whose code disagrees with where they physically stand, all at a commune boundary. 244 stops resolve to nothing and are dropped — IDFM lines reach Vernon, Dreux and Plailly, and no comparison zone could ever contain them.
+
+Bus stops draw from zoom 12 and stop names from zoom 13.5. At region zoom, 18 870 bus dots are a grey wash that tells nobody anything.
 
 ### Frontend
 
@@ -341,7 +377,7 @@ Three implementation notes that are load-bearing:
 
 Code: **MIT**. Do what you like with it.
 
-Data: the generated `communes_scores.geojson` is a derived database of SSMSI's crime statistics (**ODbL v2**), of Airparif's modelled concentrations (**ODbL**) and of Cerema's national mapping of night lighting practice (**ODbL**). ODbL is share-alike, so that file and anything derived from it must be redistributed under ODbL with attribution to the sources listed above.
+Data: the generated `communes_scores.geojson` is a derived database of SSMSI's crime statistics (**ODbL v2**), of Airparif's modelled concentrations (**ODbL**) and of Cerema's national mapping of night lighting practice (**ODbL**). `reseau_arrets.geojson` is derived from IDFM's *Arrêts et lignes associées* (**ODbL**); `reseau_traces.geojson` is Licence Ouverte and carries no share-alike. ODbL is share-alike, so those files and anything derived from them must be redistributed under ODbL with attribution to the sources listed above.
 
 ### What's next ?
 

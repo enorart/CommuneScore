@@ -21,9 +21,9 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      # etl/pipeline.py produce data/processed/communes_scores.geojson
+      # etl/pipeline.py produces every file the frontend loads:
+      # communes_scores.geojson, then the two reseau_* overlay files.
       # use real source implementations, extract, clean, transform, load
-      # TODO : integrate all datas (BPE, security, air...)
       - name: Run ETL pipeline
         run: uv run python -m etl.pipeline
 
@@ -31,6 +31,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/processed/communes_scores.geojson
+          git add data/processed/
           git diff --cached --quiet || git commit -m "chore: refresh commune scoring data"
           git push
