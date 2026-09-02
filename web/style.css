@@ -882,6 +882,31 @@ input[type="range"]:focus-visible {
   box-shadow: 0 2px 10px rgb(20 23 28 / 0.09);
 }
 
+/* The (i) has to sit on the baseline of an uppercase mono heading, which
+   .legend-title letter-spaces; the flex row keeps the trailing letter-space
+   from pushing it away from the word. */
+#network .legend-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Prose, so it wraps and takes the full width of the control. Hidden until
+   the (i) is pressed, and *under* the toggles rather than above them: opening
+   it must not push the buttons down under MapLibre's attribution bar, which
+   is what happens at 390px. */
+.network-note {
+  margin: 0.55rem 0 0;
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+.network-note strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
 .network-modes {
   display: flex;
   flex-wrap: wrap;

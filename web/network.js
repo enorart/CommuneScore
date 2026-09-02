@@ -6,9 +6,6 @@
 // knows nothing about these two files. They are fetched only when the user
 // switches a mode on, because 5 MB has no business on the critical path of a
 // map whose point is the colour of the communes.
-//
-// Built by `uv run python -m etl.network` (etl/network/), which is a separate
-// entry point from the pipeline for the same reason.
 
 import { REGION_SCOPE_ID } from "./scopes.js";
 
@@ -188,9 +185,23 @@ export function lineColors(traces) {
   return colors;
 }
 
+// The one thing the overlay has to admit to. Bus is the only mode drawn as
+// stops without its lines, and the map does not say so on its own : a commune
+// covered in bus dots with no line through it reads as missing data rather
+// than as a choice. Same (i) grammar as the popup's fourteen criterion notes.
+const NETWORK_NOTE = `
+  <strong>Le bus n’a que ses arrêts</strong>, pas ses tracés : les 1 929 lignes
+  franciliennes pèsent 32 Mo, et s’emmêlent de toute façon à l’échelle d’un
+  département. Cliquez un arrêt pour voir les lignes qui y passent, bus compris.`;
+
 export function renderNetworkToggles(container, active, onToggle) {
   container.innerHTML = `
-    <p class="legend-title">Réseau</p>
+    <p class="legend-title">
+      Réseau
+      <button type="button" class="criterion-info" id="network-info" aria-expanded="false"
+              aria-controls="network-note" aria-label="Ce que la carte dessine"
+              title="Ce que la carte dessine">i</button>
+    </p>
     <div class="network-modes">
       ${MODES.map(
         ({ key, label, color }) =>
@@ -198,7 +209,15 @@ export function renderNetworkToggles(container, active, onToggle) {
                    aria-pressed="${active.has(key)}" style="--mode-color:${color}">${label}</button>`
       ).join("")}
     </div>
+    <p class="network-note" id="network-note" hidden>${NETWORK_NOTE}</p>
   `;
+
+  const info = container.querySelector("#network-info");
+  const note = container.querySelector("#network-note");
+  info.addEventListener("click", () => {
+    note.hidden = !note.hidden;
+    info.setAttribute("aria-expanded", String(!note.hidden));
+  });
 
   container.addEventListener("click", (event) => {
     const button = event.target.closest(".network-toggle");
