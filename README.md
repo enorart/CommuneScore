@@ -271,7 +271,7 @@ web/
   render.js             # every HTML string (popup, ranking rows, spine bars)
   colors.js             # the single colour scale, shared by map, bars and legend
   network.js            # the transport overlay: mode toggles, layers, zone fading
-  traveltime.js         # the travel-time matrices: loading, slicing, the control
+  isochrone.js          # the travel-time matrices: loading, slicing, the control
   geometry.js           # bounds and centroid, for framing and placing popups
   scripts/sync-data.mjs # copies the GeoJSON into web/public/ before dev/build
 

@@ -26,7 +26,7 @@ import {
   loadMatrix,
   renderTravelControl,
   rowFor,
-} from "./traveltime.js";
+} from "./isochrone.js";
 import { bounds, centroid } from "./geometry.js";
 
 // Vite's production bundler (Rolldown) emits maplibre-gl's worker file verbatim
