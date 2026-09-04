@@ -395,16 +395,30 @@ input[type="range"]:focus-visible {
   height: 100%;
 }
 
-#legend {
+/* The legend, the network toggles and the travel-time control are one stack,
+   not three boxes at three hardcoded offsets: each of them changes height
+   when its note or its contents open, and fixed offsets meant the box above
+   had to be re-measured every time. `pointer-events` is given back only to
+   the boxes, so the gaps between them still pan the map. */
+#map-controls {
   position: absolute;
   left: 1.25rem;
   bottom: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
   width: 190px;
+  max-height: calc(100% - 2.5rem);
+  pointer-events: none;
+}
+
+#map-controls > div {
   padding: 0.7rem 0.8rem 0.6rem;
   background: var(--paper);
   border: 1px solid var(--rule);
   border-radius: 3px;
   box-shadow: 0 2px 10px rgb(20 23 28 / 0.09);
+  pointer-events: auto;
 }
 
 .legend-title {
@@ -691,6 +705,11 @@ input[type="range"]:focus-visible {
 .criterion-info {
   display: inline-grid;
   place-items: center;
+  /* The overlay headings are flex rows (#travel .legend-title), where a
+     13px item still shrinks by default: a long commune name after "Depuis"
+     squeezed the circle into an ellipse. Ignored in the sidebar, which is
+     not a flex context. */
+  flex: none;
   width: 13px;
   height: 13px;
   padding: 0;
@@ -867,25 +886,13 @@ input[type="range"]:focus-visible {
 
 /* ---------- Network overlay ---------- */
 
-/* Stacked above the legend in the same bottom-left corner: both explain what
-   is drawn on the map, neither belongs in the sidebar, which is about
-   scoring. Sharing .legend-title keeps the two headings the same voice. */
-#network {
-  position: absolute;
-  left: 1.25rem;
-  bottom: 6.4rem;
-  width: 190px;
-  padding: 0.7rem 0.8rem 0.6rem;
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: 3px;
-  box-shadow: 0 2px 10px rgb(20 23 28 / 0.09);
-}
-
-/* The (i) has to sit on the baseline of an uppercase mono heading, which
-   .legend-title letter-spaces; the flex row keeps the trailing letter-space
-   from pushing it away from the word. */
-#network .legend-title {
+/* The overlay controls share .legend-title with the legend itself: all three
+   explain what is drawn on the map, and none belongs in the sidebar, which is
+   about scoring. The (i) then has to sit on the baseline of an uppercase mono
+   heading, which .legend-title letter-spaces; the flex row keeps that trailing
+   letter-space from pushing the icon away from the word. */
+#network .legend-title,
+#travel .legend-title {
   display: flex;
   align-items: center;
   gap: 0.35rem;
@@ -895,19 +902,26 @@ input[type="range"]:focus-visible {
    the (i) is pressed, and *under* the toggles rather than above them: opening
    it must not push the buttons down under MapLibre's attribution bar, which
    is what happens at 390px. */
-.network-note {
+.network-note,
+.travel-note {
   margin: 0.55rem 0 0;
   font-size: 0.68rem;
   line-height: 1.45;
   color: var(--ink-soft);
 }
 
-.network-note strong {
+.network-note strong,
+.travel-note strong {
   font-weight: 600;
   color: var(--ink);
 }
 
-.network-modes {
+/* Shared by the two overlay controls. Named for both rather than reused
+   silently: web/ has one flat stylesheet with no scoping, and a class that
+   says "network" quietly restyling the travel control is how .criterion-label
+   went wrong (item 14). */
+.network-modes,
+.travel-modes {
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
@@ -941,6 +955,113 @@ input[type="range"]:focus-visible {
   border-color: var(--mode-color);
   background: var(--mode-color);
   color: #ffffff;
+}
+
+/* ---------- Travel time ---------- */
+
+/* Same control as .network-toggle, but the "on" state is the ink rather than
+   a mode colour: only one of the three can be on at a time, so it is a
+   segmented choice and not five independent switches. */
+.travel-toggle {
+  padding: 0.15rem 0.42rem;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--paper);
+  font: inherit;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.travel-toggle:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+
+.travel-toggle:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.travel-toggle[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  cursor: default;
+}
+
+.travel-limit {
+  display: block;
+  margin-top: 0.6rem;
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+}
+
+.travel-limit output {
+  font-family: var(--mono);
+  color: var(--ink);
+}
+
+.travel-limit input {
+  width: 100%;
+  margin-top: 0.25rem;
+  accent-color: var(--ink);
+}
+
+.travel-exit {
+  margin-top: 0.5rem;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.travel-exit:hover {
+  color: var(--accent);
+}
+
+/* In the popup: the way into travel-time mode, and once in it, the answer to
+   "how far is this one from where I am measuring". */
+.popup-travel {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0 0 0.7rem;
+}
+
+.travel-reach {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--ink);
+}
+
+.travel-link {
+  padding: 0.15rem 0.42rem;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--paper);
+  font: inherit;
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.travel-link:hover:not(:disabled) {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+
+.travel-link:disabled {
+  border-color: transparent;
+  background: var(--paper-sunk);
+  color: var(--ink-faint);
+  cursor: default;
 }
 
 /* ---------- Stop popup ---------- */
@@ -1022,21 +1143,14 @@ input[type="range"]:focus-visible {
   }
 
   /* MapLibre's own attribution bar sits bottom-right and would cover the
-     legend at this width. */
-  #legend {
+     stack at this width, so it moves to the top-left. */
+  #map-controls {
     top: 0.75rem;
     bottom: auto;
     left: 0.75rem;
     width: 160px;
-  }
-
-  /* Follows the legend up, and sits under it: the toggles wrap to three rows
-     at 160px, so a fixed offset from the top would overlap at some widths. */
-  #network {
-    top: 6.4rem;
-    bottom: auto;
-    left: 0.75rem;
-    width: 160px;
+    max-height: calc(100% - 1.5rem);
+    overflow-y: auto;
   }
 }
 

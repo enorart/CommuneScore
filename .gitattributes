@@ -1,0 +1,5 @@
+# The travel-time matrices are raw uint8 bytes, gzipped. Without this, git on
+# Windows would apply CRLF translation to anything it guessed was text and
+# corrupt them silently -- a matrix that is wrong by a byte is wrong
+# everywhere and reports no error.
+*.bin.gz binary

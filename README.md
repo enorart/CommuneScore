@@ -36,6 +36,7 @@ That information exists. INSEE, ANIL, Île-de-France Mobilités and the Ministry
 4. **Click a commune.** The popup breaks the score down criterion by criterion, showing the raw value next to each score. Each criterion carries an **ⓘ** explaining what its number measures and where it misleads, and nine of them also expand — via the chevron on the label — into the detail behind the figure: rent's four typologies, the lines reachable, the crime families, the four pollutants, and so on. One panel is open at a time, so the popup never outgrows the map.
 5. **Zoom in on a zone.** In the popup, the commune's département and intercommunalité are clickable : comparing 30 neighbouring communes tells you far more than comparing 1 285.
 6. **Switch on the network.** Bottom left of the map, five toggles draw the RER, trains, métro, trams and buses : the line traces in Île-de-France Mobilités' own colours, and every stop in the region. Click a stop to see what calls there.
+7. **Ask what a commune reaches.** In its popup, *Temps de trajet depuis ici* recolours the whole map by minutes from that commune — by public transport, by bike or on foot — with a slider for how long you are willing to travel. Dark keeps meaning better : here, quicker.
 
 ---
 
@@ -45,13 +46,15 @@ All sources are French open data, published per commune.
 
 | Criterion | Source                                                                                                   | Year | Licence |
 |---|----------------------------------------------------------------------------------------------------------|---|---|
-| Boundaries, population, intercommunalités | IGN — ADMIN EXPRESS COG, via the Géoplateforme WFS (Web Feature Service, vectorial datas)                | 2025 | Licence Ouverte / Etalab 2.0 |
+| Boundaries, population, intercommunalités, chefs-lieux | IGN — ADMIN EXPRESS COG, via the Géoplateforme WFS (Web Feature Service, vectorial datas)                | 2025 | Licence Ouverte / Etalab 2.0 |
 | Rent (€/m²) | ANIL — Carte des loyers, via data.gouv.fr                                                                | 2025 | Licence Ouverte / Etalab 2.0 |
 | Shops, health, schools, childcare, sport, culture | INSEE — Base permanente des équipements (BPE) via data.gouv.fr                                           | 2025 | Licence Ouverte / Etalab 2.0 |
 | Social composition of schools (IPS) | Ministère de l'Éducation nationale (DEPP) — Indices de position sociale des écoles, collèges et lycées, via data.education.gouv.fr | 2024-2025 | Licence Ouverte / Etalab 2.0 |
 | Rail stations and lines | Île-de-France Mobilités — Gares et stations du réseau ferré via data.gouve.fr                            | 2025 | Licence Ouverte v2.0 (Etalab) |
 | Line traces (map overlay) | Île-de-France Mobilités — Tracés du réseau de transport ferré d'Île-de-France, via data.gouv.fr | 2026 | Licence Ouverte v2.0 (Etalab) |
 | Stops (map overlay) | Île-de-France Mobilités — Arrêts et lignes associées, via data.gouv.fr | 2026 | **ODbL** |
+| Street network (travel time) | OpenStreetMap — Île-de-France extract, via Geofabrik | daily | **ODbL** |
+| Timetables (travel time) | Île-de-France Mobilités — Horaires GTFS, via data.gouv.fr | daily | **ODbL** |
 | Recorded crime | SSMSI — Base statistique communale de la délinquance via data.gouv.fr                                    | 2025 | **ODbL v2** |
 | Air quality | Airparif — Concentrations moyennes annuelles modélisées, via its WCS (Web Coverage Service, raster datas | 2025 | **ODbL** |
 | Noise | Airparif & Bruitparif — Cartographie air-bruit, via bruitparif.fr                                        | 2024 | Licence Ouverte / Etalab 2.0 |
@@ -252,6 +255,9 @@ etl/
     rent.py  bpe.py  idfm_gares.py  ssmsi.py  airparif.py  mos.py
     ips_schools.py  bruit.py  radiance.py  extinctions.py
   pipeline.py             # orchestration only: ref + every source -> the output files
+  isochrone/              # travel-time matrices: own command, own workflow, needs a JDK
+    network.py            # the R5 network, and picking the day to travel on
+    matrix.py             # one mode -> a 1285x1285 uint8 square
   network/                # the map overlay: no scores, its own contract, no command
     traces.py  arrets.py  # rail line geometry, and every stop in the region
     __init__.py           # write(ref) -> reseau_traces + reseau_arrets, called by pipeline
@@ -265,6 +271,7 @@ web/
   render.js             # every HTML string (popup, ranking rows, spine bars)
   colors.js             # the single colour scale, shared by map, bars and legend
   network.js            # the transport overlay: mode toggles, layers, zone fading
+  traveltime.js         # the travel-time matrices: loading, slicing, the control
   geometry.js           # bounds and centroid, for framing and placing popups
   scripts/sync-data.mjs # copies the GeoJSON into web/public/ before dev/build
 
@@ -349,6 +356,52 @@ Two things about the stop data are worth knowing before touching `etl/network/ar
 
 Bus stops draw from zoom 12 and stop names from zoom 13.5. At region zoom, 18 870 bus dots are a grey wash that tells nobody anything.
 
+### Travel time from a commune
+
+Click a commune, press **Temps de trajet depuis ici**, and the whole map recolours by how many minutes it takes to reach every other commune — by public transport, by bike or on foot — with a slider for the time you are willing to spend. Dark still means better, as it does for scores: here it means quicker.
+
+This is the improvement the "What's next" list used to say needed a server and a live API. It does not. Every travel time is precomputed in CI and shipped as a static file, like everything else here.
+
+**A matrix, not isochrone polygons, and that is what makes it affordable.** 1 285 origins × 1 285 destinations × one byte of minutes is 1.65 MB, 0.79 MB gzipped, per mode. The app is already a commune choropleth, so no new geometry ships at all; the time-limit slider is a threshold on one row rather than a separate polygon set per threshold; and a second departure profile would be one more file. Polygons would have been ~38 MB for two modes at three thresholds, and every new threshold would mean rebuilding all of them.
+
+The router is [R5](https://github.com/conveyal/r5) via [r5py](https://r5py.readthedocs.io/), run locally over an OpenStreetMap extract and Île-de-France Mobilités' GTFS. No routing API is involved: IDFM's own isochrone endpoint allows 10 requests a month, and Mapbox's — whose free tier is generous enough — forbids caching results, which is exactly what a static site does.
+
+```bash
+uv sync --group isochrone
+uv run python -m etl.isochrone      # needs a JDK 21; ~20 min; not part of etl.pipeline : example : JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-21.0.1.12-hotspot'
+```
+
+Its own command and its own workflow (`.github/workflows/isochrone.yml`, quarterly), unlike the network overlay which `etl.pipeline` builds: this one needs a JVM, downloads 451 MB and takes twenty minutes, so it has no business on the path of a sixty-second run. Wired into CI from the day it landed, which is the part that matters — an artifact nobody rebuilds goes stale invisibly.
+
+| Output | | |
+|---|---|---|
+| `temps_transit.bin.gz` | 1 285² uint8 minutes, row-major | 0.30 MB |
+| `temps_velo.bin.gz` | same | 0.12 MB |
+| `temps_marche.bin.gz` | same | 0.05 MB |
+| `temps_index.json` | the 1 285 codes **in matrix order**, and the profile below | 16 KB |
+
+Under half a megabyte for all four, because a matrix of minutes over a region compresses extremely well: 1.65 MB of bytes each becomes 0.30, 0.12 and 0.05.
+
+Row *i* is origin *i*. The matrix is **not symmetric** — leaving a commune at 08:00 is not the reverse of arriving in it — so the whole square ships. `255` means "not reachable within two hours".
+
+#### What the number is, and is not
+
+Measured from the commune's **chef-lieu**, the point AdminExpress publishes for where the town is. R5 then snaps that to the nearest street.
+
+- **Not the middle of the polygon**, and that choice decides whether the layer works at all. Fontainebleau is 172 km² of which most is forest: measured from its geometric point, three kilometres into the trees, every destination came back unreachable within two hours — which reads as *you cannot get there from here* and is false. The chef-lieu is 3.4 km away, by the station.
+- **It is still one point for a whole commune.** A commune whose people live away from its chef-lieu is measured from somewhere they do not live, and nothing published gives a population-weighted point per commune. Stated rather than quietly corrected.
+- **Paris 1er, 2e and 4e fall back to their polygons.** AdminExpress gives all three the Hôtel de Ville, mairie of the merged *Paris Centre* sector since 2020, which would have given them one shared origin and zero minutes between them.
+- **One departure profile**: a Tuesday at 08:00, median over an hour of possible departure times. Not a Saturday, not the evening.
+- **Two hours is the ceiling.** Beyond it nothing is computed, and nothing beyond it is a commute anyone chooses a flat around.
+- **No car.** R5 and OSRM both compute free-flow times from OSM speed limits, and no open source publishes congestion for Île-de-France — a car layer would claim the A86 runs at 110 km/h at 08:00, wrong by roughly two-fold at exactly the hour that matters. Left out rather than shipped behind a caveat.
+- **Walking and cycling answer a sub-commune question.** A 20-minute walk is a shape inside your own commune, not a list of other communes, so those two modes legitimately look sparse outside the dense core. That is true information, not missing data.
+
+#### The date is chosen from the feed, never hardcoded
+
+IDFM's GTFS covers about 30 days from the moment it is generated and is regenerated three times a day, so a fixed date stops being valid within the month. `etl/isochrone/network.py` picks the **Tuesday inside the feed's validity with the most trips running**, which is what keeps the result out of a school-holiday week without needing a calendar of French school holidays, and is a pure function of the feed.
+
+It matters more than it sounds. On the feed built 2 September 2026, the first Tuesday available was 1 September with **5 469 trips** — the tail of the summer timetable — against 144 665 on the 22nd. Taking the first would have measured a region whose buses had mostly stopped running.
+
 ### Frontend
 
 ```bash
@@ -359,15 +412,17 @@ npm run build    # -> web/dist, what the GitHub Action deploys
 npm run preview  # serve the built site locally
 ```
 
-`dev` and `build` both run a hook that copies the GeoJSON into `web/public/data/`. Re-run the ETL any time you want fresher data, then restart the dev server.
+`dev` and `build` both run a hook that copies `data/processed/` into `web/public/data/`. Re-run the ETL any time you want fresher data, then restart the dev server.
 
 **Adding a criterion** is deliberately cheap: add one entry to `CRITERIA` in `web/sliders.js` (key, family, label, the `score_*` property, the raw column it reads, a unit, a default weight). The map, the sliders, the ranking, the spine bars, the popup and the scope re-scoring all iterate that list and pick it up for free. The only extra step is a `SCORERS` entry in `web/scoring.js`, and only if the default (log min-max, higher is better) is wrong for it — as it is for rent and security, which are both inverted percentile ranks.
 
-Three implementation notes that are load-bearing:
+Five implementation notes that are load-bearing:
 
 - The map source uses `promoteId: "code_insee"`, so the composite score lives in MapLibre **feature state** and the formula stays in one place (`compositeScore` in `scoring.js`).
 - Feature-state updates are **coalesced to one pass per animation frame**. Dragging a slider would otherwise queue 1 285 writes per input event.
-- Everything on the page reads from a **single colour scale** (`RAMP` in `colors.js`): the map, the ranking spines and the popup bars all mean the same thing, and one legend explains all three.
+- Everything on the page reads from a **single colour scale** (`RAMP` in `colors.js`): the map, the ranking spines and the popup bars all mean the same thing, and one legend explains all three. Travel-time mode reads the same ramp **reversed**, so dark keeps meaning better — the best fit in score mode, the quickest to reach in travel mode.
+- **Never swap a data-driven paint property between an expression and a constant.** Suppressing the out-of-scope fade by setting `fill-opacity` to a plain number, then back, throws inside MapLibre's paint binder while the GeoJSON source is still creating tiles. Travel mode writes `inScope: true` in feature state instead, so the expression never changes shape.
+- The two overlays — the network and the travel matrices — are **fetched only when switched on**, each guarded by its own stored promise, and both live in a `#map-controls` flex stack with the legend so a box that grows cannot push another off the map.
 
 ---
 
@@ -377,14 +432,14 @@ Three implementation notes that are load-bearing:
 
 Code: **MIT**. Do what you like with it.
 
-Data: the generated `communes_scores.geojson` is a derived database of SSMSI's crime statistics (**ODbL v2**), of Airparif's modelled concentrations (**ODbL**) and of Cerema's national mapping of night lighting practice (**ODbL**). `reseau_arrets.geojson` is derived from IDFM's *Arrêts et lignes associées* (**ODbL**); `reseau_traces.geojson` is Licence Ouverte and carries no share-alike. ODbL is share-alike, so those files and anything derived from them must be redistributed under ODbL with attribution to the sources listed above.
+Data: the generated `communes_scores.geojson` is a derived database of SSMSI's crime statistics (**ODbL v2**), of Airparif's modelled concentrations (**ODbL**) and of Cerema's national mapping of night lighting practice (**ODbL**). `reseau_arrets.geojson` is derived from IDFM's *Arrêts et lignes associées* (**ODbL**); `reseau_traces.geojson` is Licence Ouverte and carries no share-alike. The `temps_*` matrices are derived from OpenStreetMap and IDFM's GTFS, both **ODbL**. ODbL is share-alike, so those files and anything derived from them must be redistributed under ODbL with attribution to the sources listed above.
 
 ### What's next ?
 
 Possible improvments:
 
 1. **Extending beyond Île-de-France** : replacing the IDFM rail source with a national equivalent and/or local equivalent for cities like Lyon, Marseille, Toulouse... The IPS, BPE and the two light sources are already national — Cerema publishes the LuoJia radiance for 80 départements, and the lighting-practice file covers all 22 773 communes as it is.
-2. Dynamic door-to-door commute time from the centroid of a commune to a chosen place. Need dynamic API call and a web server, not a static website anymore.
+2. ~~Dynamic door-to-door commute time~~ — shipped, and it needed neither an API nor a server: see [Travel time from a commune](#travel-time-from-a-commune). What is still open there is **car**, which waits on a congestion source, and **filtering the ranking by travel time** — "rank by my priorities, but only within 45 min of my office" is what the matrix unlocks and is the obvious next step.
 3. Adding qualitative review from locals / Fetching with authorisation some website about quality of life in a commune or district.
 
 ### On AI assistance

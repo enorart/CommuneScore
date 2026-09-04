@@ -13,3 +13,12 @@ dependencies = [
     "rasterio>=1.4",
     "fastexcel>=0.20.2",
 ]
+
+# Only for `python -m etl.isochrone`, which builds the travel-time matrices.
+# Kept out of [project.dependencies] on purpose: r5py drags in a JVM router and
+# a JDK 21 requirement, and the normal pipeline must stay a light `uv sync`.
+#   uv sync --group isochrone
+[dependency-groups]
+isochrone = [
+    "r5py>=1.0",
+]

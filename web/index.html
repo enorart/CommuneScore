@@ -50,8 +50,13 @@
 
       <main id="map-container">
         <div id="map"></div>
-        <div id="network"><!-- populated by network.js --></div>
-        <div id="legend"><!-- populated by app.js --></div>
+        <!-- One stack, so a box growing does not push the others out of
+             the map. Order is top to bottom on screen. -->
+        <div id="map-controls">
+          <div id="travel" hidden><!-- populated by traveltime.js --></div>
+          <div id="network"><!-- populated by network.js --></div>
+          <div id="legend"><!-- populated by app.js --></div>
+        </div>
       </main>
     </div>
 

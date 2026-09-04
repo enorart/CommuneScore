@@ -429,7 +429,7 @@ function criterionRows(criterion, props, weights, meta) {
     ${detailRows(criterion.key, props)}`;
 }
 
-export function popupHtml(props, { weights, scope, scopeCount, meta }) {
+export function popupHtml(props, { weights, scope, scopeCount, meta, travel, travelMinutes }) {
   const composite = compositeScore(props, weights);
 
   // Side by side rather than one list: ten criteria stacked make a popup
@@ -456,6 +456,8 @@ export function popupHtml(props, { weights, scope, scopeCount, meta }) {
         <span class="popup-score-label">score composite</span>
       </div>
 
+      ${travelRow(props, travel, travelMinutes)}
+
       <div class="popup-criteria">${columns}</div>
 
       <p class="popup-footnote">
@@ -467,6 +469,33 @@ export function popupHtml(props, { weights, scope, scopeCount, meta }) {
       </p>
     </div>
   `;
+}
+
+/**
+ * The one line that turns the popup into the way into travel-time mode, and
+ * out of it into another origin.
+ *
+ * With the mode already on it also answers the question you opened this
+ * commune to ask: how far is it from where I am measuring.
+ */
+function travelRow(props, travel, minutes) {
+  const origin = travel?.origin === props.code_insee;
+  const reach = travel && !origin ? minutes.get(props.code_insee) : null;
+
+  // `travel.max` is the ETL's ceiling, not the slider: a commune absent from
+  // the row was not reached in two hours, whatever the user set the limit to.
+  const distance = !travel || origin
+    ? ""
+    : `<span class="travel-reach">${reach == null ? `plus de ${travel.max} min` : `${reach} min`}</span>`;
+
+  const label = origin ? "Origine des temps de trajet" : travel ? "Mesurer depuis ici" : "Temps de trajet depuis ici";
+
+  return `
+    <p class="popup-travel">
+      ${distance}
+      <button type="button" class="travel-link" data-code="${props.code_insee}"
+              ${origin ? "disabled" : ""}>${label}</button>
+    </p>`;
 }
 
 export function rankingHtml(ranked, { weights, selected }) {

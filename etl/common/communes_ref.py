@@ -31,6 +31,8 @@ RAW_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "raw"
 COMMUNES_CACHE_PATH = RAW_DIR / "communes_idf.geojson"
 PARIS_ARR_CACHE_PATH = RAW_DIR / "paris_arrondissements.geojson"
 EPCI_CACHE_PATH = RAW_DIR / "epci_idf.geojson"
+CHEF_LIEUX_CACHE_PATH = RAW_DIR / "chef_lieux_communes_idf.geojson"
+CHEF_LIEUX_PARIS_CACHE_PATH = RAW_DIR / "chef_lieux_paris.geojson"
 
 # Inner-ring communes belong to two intercommunalites at once: the Metropole du
 # Grand Paris, and inside it an etablissement public territorial. MGP spans 131
@@ -169,3 +171,34 @@ def build() -> gpd.GeoDataFrame:
         combined["code_epci"].nunique(),
     )
     return combined[["name", "population", "code_departement", "code_epci", "nom_epci", "geometry"]]
+
+
+def chef_lieux() -> gpd.GeoSeries:
+    """One point per commune, at its chef-lieu, indexed by code_insee.
+
+    Where the village actually is, which is not where the polygon's middle is.
+    Only etl/isochrone/ needs this -- it is the origin travel times are measured
+    from -- and the difference is not cosmetic: Fontainebleau is 172 km2 of
+    which most is forest, so a geometric point lands kilometres from the
+    station and the commune reads unreachable everywhere.
+
+    Two layers, because the commune layer knows Paris only as 75056 and this
+    project splits it into arrondissements: AdminExpress publishes a chef-lieu
+    per arrondissement municipal too.
+    """
+    communes = _cached_wfs(
+        CHEF_LIEUX_CACHE_PATH,
+        "ADMINEXPRESS-COG.LATEST:chef_lieu_de_commune",
+        # This layer carries no departement column, unlike the commune one.
+        " OR ".join(f"code_insee_de_la_commune LIKE '{code}%'" for code in IDF_DEPARTMENTS),
+    ).set_index("code_insee_de_la_commune")
+
+    paris = _cached_wfs(
+        CHEF_LIEUX_PARIS_CACHE_PATH,
+        "ADMINEXPRESS-COG.LATEST:chef_lieu_d_arrondissement_municipal",
+        f"code_insee_de_la_commune_de_rattach = '{PARIS_CODE}'",
+    ).set_index("code_insee_de_l_arrondissement_municipal")
+
+    points = pd.concat([communes.drop(index=PARIS_CODE, errors="ignore"), paris])
+    logger.info("chef-lieux: %d communes, %d Paris arrondissements", len(communes) - 1, len(paris))
+    return gpd.GeoSeries(points.geometry, crs=points.crs).rename_axis("code_insee")

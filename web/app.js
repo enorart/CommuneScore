@@ -7,7 +7,7 @@ import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&ur
 import { NEARBY_RADIUS_KM, initialWeights, renderSliders } from "./sliders.js";
 import { REGION_SCOPE_ID, buildScopes, renderScopeSelect, siblingZone } from "./scopes.js";
 import { applyScores, compositeScore } from "./scoring.js";
-import { fillColorExpression, renderLegend } from "./colors.js";
+import { fillColorExpression, renderLegend, renderTravelLegend, travelColorExpression } from "./colors.js";
 import { formatCount, popupHtml, rankingHtml, stopPopupHtml } from "./render.js";
 import {
   STOP_URL,
@@ -18,6 +18,15 @@ import {
   lineColors,
   renderNetworkToggles,
 } from "./network.js";
+import {
+  DEFAULT_LIMIT,
+  INDEX_URL,
+  MODES as TRAVEL_MODES,
+  UNREACHABLE,
+  loadMatrix,
+  renderTravelControl,
+  rowFor,
+} from "./traveltime.js";
 import { bounds, centroid } from "./geometry.js";
 
 // Vite's production bundler (Rolldown) emits maplibre-gl's worker file verbatim
@@ -48,6 +57,7 @@ const SOURCE_ATTRIBUTION = [
   'Délinquance : <a href="https://www.data.gouv.fr/datasets/bases-statistiques-communale-departementale-et-regionale-de-la-delinquance-enregistree-par-la-police-et-la-gendarmerie-nationales" target="_blank" rel="noopener">SSMSI 2025</a> (ODbL v2)',
   `Qualité de l'air : <a href="https://www.data.gouv.fr/datasets/concentrations-moyennes-annuelles-des-polluants-reglementes-en-ile-de-france" target="_blank" rel="noopener">Airparif 2025</a> (ODbL)`,
   'Arrêts et lignes : <a href="https://www.data.gouv.fr/datasets/arrets-et-lignes-associees" target="_blank" rel="noopener">Île-de-France Mobilités 2026</a> (ODbL)',
+  `Temps de trajet : calculés avec <a href="https://r5py.readthedocs.io/" target="_blank" rel="noopener">R5</a> sur <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> et les horaires GTFS d'Île-de-France Mobilités (ODbL)`,
   "Licence Ouverte / Etalab 2.0",
 ];
 
@@ -149,8 +159,17 @@ function start(map, communes) {
   let lineColor = new Map();
   let networkLoading = null;
 
+  // Travel-time mode. `travel` is null whenever the map is showing scores,
+  // which is what every branch below tests. The matrices are 1.6 MB each and
+  // are fetched on demand, one per mode, and kept once fetched.
+  let travel = null;
+  let travelIndex = null;
+  const travelMatrices = new Map();
+  const travelLoading = new Map();
+  let travelMinutes = new Map();
+
   // What render.js needs to draw the popup and the ranking.
-  const view = () => ({ weights, scope, scopeCount: inScope.length, selected, meta });
+  const view = () => ({ weights, scope, scopeCount: inScope.length, selected, meta, travel, travelMinutes });
 
   function select(props, lngLat) {
     selected = props.code_insee;
@@ -173,6 +192,9 @@ function start(map, communes) {
     const closeButton = element.querySelector(".maplibregl-popup-close-button");
     const header = element.querySelector(".commune-popup header");
     if (closeButton && header) header.append(closeButton);
+
+    const travelLink = element.querySelector(".travel-link");
+    if (travelLink) travelLink.addEventListener("click", () => enterTravel(travelLink.dataset.code));
 
     for (const link of element.querySelectorAll(".zone-link:not(.is-active)")) {
       link.addEventListener("click", () => {
@@ -244,6 +266,131 @@ function start(map, communes) {
     if (closeButton && header) header.append(closeButton);
   }
 
+  // Closing the popup ends the selection: the red outline used to linger over
+  // a commune whose panel was no longer on screen.
+  popup.on("close", () => {
+    if (!selected) return;
+    selected = null;
+    map.setFilter("communes-selected", ["==", ["get", "code_insee"], ""]);
+    renderRanking();
+  });
+
+  // An open popup carries the travel state in its own markup -- the reach
+  // line, and whether this commune is the origin -- so entering or leaving
+  // travel mode has to redraw it.
+  function redrawPopup() {
+    const feature = selected && byCode.get(selected);
+    if (!feature || !popup.isOpen()) return;
+
+    popup.setHTML(popupHtml(feature.properties, view()));
+    wirePopup(popup);
+  }
+
+  // Fetched on demand: the index once, then one matrix per mode the user
+  // actually asks for. Guarded by a stored promise, like loadNetwork().
+  async function loadTravel(mode) {
+    if (travelMatrices.has(mode)) return;
+
+    // Keyed by mode, not one shared promise: clicking two modes quickly would
+    // otherwise let the second overwrite the first and add nothing twice.
+    if (!travelLoading.has(mode)) {
+      const { url } = TRAVEL_MODES.find((entry) => entry.key === mode);
+
+      travelLoading.set(
+        mode,
+        (async () => {
+          const [index, matrix] = await Promise.all([
+            travelIndex ?? fetch(INDEX_URL).then((response) => response.json()),
+            loadMatrix(url),
+          ]);
+          travelIndex = index;
+
+          // A matrix read against the wrong index is wrong silently and
+          // everywhere, so the one thing that can catch it is checked here.
+          const expected = index.communes.length ** 2;
+          if (matrix.length !== expected) {
+            throw new Error(`${url}: ${matrix.length} bytes, expected ${expected}`);
+          }
+          travelMatrices.set(mode, matrix);
+        })()
+      );
+    }
+
+    await travelLoading.get(mode);
+  }
+
+  // One pass over the origin's row, so refresh() can stay a lookup per frame.
+  function readRow() {
+    const codes = travelIndex.communes;
+    const origin = codes.indexOf(travel.origin);
+
+    travelMinutes = new Map();
+    if (origin < 0) {
+      // The matrices are rebuilt on their own schedule, so a commune can exist
+      // in the scores and not yet in the index. Empty rather than wrong.
+      console.warn(`${travel.origin} is not in ${INDEX_URL}; travel times unavailable`);
+      return;
+    }
+
+    const row = rowFor(travelMatrices.get(travel.mode), origin, codes.length);
+    for (let i = 0; i < codes.length; i += 1) {
+      if (row[i] !== UNREACHABLE) travelMinutes.set(codes[i], row[i]);
+    }
+  }
+
+  function paintTravel() {
+    map.setPaintProperty("communes-fill", "fill-color", travelColorExpression(travel.limit));
+    renderTravelLegend(document.getElementById("legend"), travel.limit);
+
+    const container = document.getElementById("travel");
+    container.hidden = false;
+    renderTravelControl(
+      container,
+      { ...travel, originName: byCode.get(travel.origin)?.properties.name ?? travel.origin },
+      { onMode: setTravelMode, onLimit: setTravelLimit, onExit: exitTravel }
+    );
+    redrawPopup();
+    refresh();
+  }
+
+  async function enterTravel(code) {
+    const mode = travel?.mode ?? TRAVEL_MODES[0].key;
+    await loadTravel(mode);
+
+    travel = {
+      mode,
+      limit: travel?.limit ?? DEFAULT_LIMIT,
+      origin: code,
+      max: travelIndex.profil.max_min,
+    };
+    readRow();
+    paintTravel();
+  }
+
+  async function setTravelMode(mode) {
+    await loadTravel(mode);
+    travel = { ...travel, mode };
+    readRow();
+    paintTravel();
+  }
+
+  function setTravelLimit(limit) {
+    travel = { ...travel, limit };
+    map.setPaintProperty("communes-fill", "fill-color", travelColorExpression(limit));
+    renderTravelLegend(document.getElementById("legend"), limit);
+  }
+
+  function exitTravel() {
+    travel = null;
+    travelMinutes = new Map();
+
+    map.setPaintProperty("communes-fill", "fill-color", fillColorExpression());
+    renderLegend(document.getElementById("legend"));
+    document.getElementById("travel").hidden = true;
+    redrawPopup();
+    refresh();
+  }
+
   function renderRanking() {
     const ranked = inScope
       .map((feature) => ({ props: feature.properties, score: compositeScore(feature.properties, weights) }))
@@ -263,11 +410,26 @@ function start(map, communes) {
     pending = requestAnimationFrame(() => {
       pending = null;
       for (const feature of communes.features) {
-        const score = compositeScore(feature.properties, weights);
-        map.setFeatureState(
-          { source: "communes", id: feature.properties.code_insee },
-          { composite: score == null ? -1 : score }
-        );
+        const code = feature.properties.code_insee;
+
+        // Out-of-scope fading is suppressed in travel mode: "what can I
+        // reach" is a region-wide question, and dimming three quarters of the
+        // answer would be wrong. Done through feature state rather than by
+        // swapping fill-opacity between an expression and a constant --
+        // changing a data-driven paint property's *kind* while the GeoJSON
+        // source is still creating tiles throws inside MapLibre's paint
+        // binder ("this.expression.evaluate is not a function").
+        //
+        // Feature state merges on write, so both keys coexist and switching
+        // back to scores needs no second pass.
+        const state = { inScope: travel ? true : scope.matches(feature.properties) };
+        if (travel) {
+          state.minutes = travelMinutes.get(code) ?? -1;
+        } else {
+          const score = compositeScore(feature.properties, weights);
+          state.composite = score == null ? -1 : score;
+        }
+        map.setFeatureState({ source: "communes", id: code }, state);
       }
       renderRanking();
     });
@@ -282,19 +444,20 @@ function start(map, communes) {
 
     applyScores(communes.features, inScope);
 
-    for (const feature of communes.features) {
-      map.setFeatureState(
-        { source: "communes", id: feature.properties.code_insee },
-        { inScope: scope.matches(feature.properties) }
-      );
-    }
+    // `inScope` feature state is written by refresh(), which this ends with:
+    // travel mode needs it forced true, so it cannot be decided in two places.
 
     // An open popup is now showing scores from the previous comparison set.
     // Redraw it where the commune survived the change, drop it where it did not.
+    // `isOpen` is load-bearing: wirePopup reads getElement(), which is
+    // undefined once MapLibre has removed the popup's container, so closing a
+    // popup and then changing the zone used to throw.
     const survivor = selected && byCode.get(selected);
     if (survivor && scope.matches(survivor.properties)) {
-      popup.setHTML(popupHtml(survivor.properties, view()));
-      wirePopup(popup);
+      if (popup.isOpen()) {
+        popup.setHTML(popupHtml(survivor.properties, view()));
+        wirePopup(popup);
+      }
     } else if (selected) {
       selected = null;
       map.setFilter("communes-selected", ["==", ["get", "code_insee"], ""]);
@@ -343,6 +506,13 @@ function start(map, communes) {
     const feature = byCode.get(event.features[0].properties.code_insee);
     if (!feature) return;
 
+    // In travel mode the comparison zone is not what the map is showing, so
+    // moving it on a click would be answering a question nobody asked.
+    if (travel) {
+      select(feature.properties, event.lngLat);
+      return;
+    }
+
     // Clicking outside the comparison set moves it rather than opening a popup
     // full of blanks : the zone jumps to the one the click landed in, at the
     // granularity already in use. That makes the map a way of walking from one
@@ -368,7 +538,7 @@ function start(map, communes) {
     }
 
     const feature = byCode.get(event.features[0].properties.code_insee);
-    const inside = feature && scope.matches(feature.properties);
+    const inside = feature && (travel || scope.matches(feature.properties));
     map.getCanvas().style.cursor = feature && (inside || siblingZone(scope, feature.properties)) ? "pointer" : "";
   });
 

@@ -1,0 +1,58 @@
+name: Rebuild travel-time matrices
+
+# Separate from refresh-data.yml on purpose. That one is five minutes of
+# Python; this one needs a JDK, downloads 451 MB and takes one to two hours,
+# so it must not sit on the monthly path. It is wired up here from the day the
+# feature landed, which is the part that actually matters: an overlay nobody
+# rebuilds goes stale invisibly.
+#
+# Quarterly rather than monthly because the repository has no LFS and gzipped
+# matrices delta-compress poorly: re-storing 2 MB of binary every month would
+# grow history for timetable changes too small to see at one-minute resolution.
+
+on:
+  schedule:
+    # 02:00 UTC on the 5th of January, April, July and October.
+    - cron: "0 2 5 1,4,7,10 *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  isochrone:
+    runs-on: ubuntu-latest
+    # Budget is 6 h; the build is expected to take one to two. Failing at four
+    # says something changed rather than letting it run all afternoon.
+    timeout-minutes: 240
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # r5py runs Conveyal's R5, which is a JVM router. 21 is its minimum.
+      - name: Install a JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      # --group isochrone is what pulls r5py in. The normal pipeline does not have
+      # it, and nothing under etl/sources/ or etl/network/ may import it.
+      - name: Install dependencies
+        run: uv sync --group isochrone
+
+      # Builds the R5 network from the OSM extract and the IDFM GTFS, then one
+      # matrix per mode -> data/processed/temps_*.
+      - name: Build the travel-time matrices
+        run: uv run python -m etl.isochrone
+
+      - name: Commit updated matrices if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/processed/
+          git diff --cached --quiet || git commit -m "chore: rebuild travel-time matrices"
+          git push
