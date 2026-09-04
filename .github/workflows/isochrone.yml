@@ -1,19 +1,13 @@
 name: Rebuild travel-time matrices
 
-# Separate from refresh-data.yml on purpose. That one is five minutes of
-# Python; this one needs a JDK, downloads 451 MB and takes one to two hours,
-# so it must not sit on the monthly path. It is wired up here from the day the
-# feature landed, which is the part that actually matters: an overlay nobody
-# rebuilds goes stale invisibly.
-#
-# Quarterly rather than monthly because the repository has no LFS and gzipped
-# matrices delta-compress poorly: re-storing 2 MB of binary every month would
-# grow history for timetable changes too small to see at one-minute resolution.
+# Separate from refresh-data.yml.
+# Needs a JDK, downloads 451 MB and takes one to two hours,
+# Monthly: IDFM's GTFS is regenerated on a monthly cycle
 
 on:
   schedule:
-    # 02:00 UTC on the 5th of January, April, July and October.
-    - cron: "0 2 5 1,4,7,10 *"
+    # 02:00 UTC on the 5th of each month, a few days after the feed refreshes.
+    - cron: "0 2 5 * *"
   workflow_dispatch:
 
 permissions:

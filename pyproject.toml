@@ -1,7 +1,7 @@
 [project]
 name = "ideal-location"
 version = "0.1.0"
-description = "Ville Idéale IDF — ETL pipeline that produces a per-commune scoring dataset for Île-de-France"
+description = "CommuneScore IDF — ETL pipeline that produces a per-commune scoring dataset for Île-de-France"
 requires-python = ">=3.13"
 dependencies = [
     "pandas>=2.2",

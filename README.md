@@ -27,6 +27,7 @@ That information exists. INSEE, ANIL, Île-de-France Mobilités and the Ministry
 
 Île-de-France only for now. 
 ⚠️ Two sources are region-specific : Île-de-France Mobilités for rail, and Bruitparif for noise. The first has national equivalents to be assembled ; the second does not exist, because France only maps noise around large agglomerations and major infrastructure.
+⚠️ Isochrone is using Île-de-France Mobilités GTFS file.
 
 ### How to use it
 
@@ -282,6 +283,7 @@ data/
 .github/workflows/
   deploy.yml            # build web/ + deploy to GitHub Pages on push to main
   refresh-data.yml      # monthly re-run of the ETL
+  isochrone.yml         # re-run ETL to get GTFS file for isochrone calculation 
 ```
 
 ### Tech stack
@@ -335,7 +337,7 @@ Every download goes through `cached_download(url, filename)` in `etl/common/cach
 
 **Note on Paris:** commune `75056` is replaced by its 20 arrondissements (`75101`–`75120`) everywhere. Every Île-de-France source codes Paris by arrondissement, and IGN publishes matching geometry *and* population. Sources that carry both `75056` and the arrondissements have `75056` dropped, or everything in Paris would count twice.
 
-### The transport network overlay
+### Transport network overlay
 
 Five toggles at the bottom left of the map draw the network: **RER, Train, Métro, Tram, Bus**. Line traces in Île-de-France Mobilités' own colours, every stop in the region, and a popup on each stop naming the lines that call there.
 
@@ -356,22 +358,22 @@ Two things about the stop data are worth knowing before touching `etl/network/ar
 
 Bus stops draw from zoom 12 and stop names from zoom 13.5. At region zoom, 18 870 bus dots are a grey wash that tells nobody anything.
 
-### Travel time from a commune
+### Isochrone (travel time) from a commune : router R5, driven from Python by r5py
 
 Click a commune, press **Temps de trajet depuis ici**, and the whole map recolours by how many minutes it takes to reach every other commune — by public transport, by bike or on foot — with a slider for the time you are willing to spend. Dark still means better, as it does for scores: here it means quicker.
 
-This is the improvement the "What's next" list used to say needed a server and a live API. It does not. Every travel time is precomputed in CI and shipped as a static file, like everything else here.
+Every travel time is precomputed in CI and shipped as a static file.
 
-**A matrix, not isochrone polygons, and that is what makes it affordable.** 1 285 origins × 1 285 destinations × one byte of minutes is 1.65 MB, 0.79 MB gzipped, per mode. The app is already a commune choropleth, so no new geometry ships at all; the time-limit slider is a threshold on one row rather than a separate polygon set per threshold; and a second departure profile would be one more file. Polygons would have been ~38 MB for two modes at three thresholds, and every new threshold would mean rebuilding all of them.
+**A matrix, not isochrone polygons, and that is what makes it affordable.**
 
-The router is [R5](https://github.com/conveyal/r5) via [r5py](https://r5py.readthedocs.io/), run locally over an OpenStreetMap extract and Île-de-France Mobilités' GTFS. No routing API is involved: IDFM's own isochrone endpoint allows 10 requests a month, and Mapbox's — whose free tier is generous enough — forbids caching results, which is exactly what a static site does.
+The router is [R5](https://github.com/conveyal/r5) via [r5py](https://r5py.readthedocs.io/), run locally over an OpenStreetMap extract and Île-de-France Mobilités' GTFS. No routing API is involved, mostly because IDFM's own isochrone endpoint allows 10 requests a month. 
 
 ```bash
 uv sync --group isochrone
-uv run python -m etl.isochrone      # needs a JDK 21; ~20 min; not part of etl.pipeline : example : JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-21.0.1.12-hotspot'
+uv run python -m etl.isochrone      # needs a JDK 21; not part of etl.pipeline : example : JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-21.0.1.12-hotspot'
 ```
 
-Its own command and its own workflow (`.github/workflows/isochrone.yml`, quarterly), unlike the network overlay which `etl.pipeline` builds: this one needs a JVM, downloads 451 MB and takes twenty minutes, so it has no business on the path of a sixty-second run. Wired into CI from the day it landed, which is the part that matters — an artifact nobody rebuilds goes stale invisibly.
+Its own command and its own workflow (`.github/workflows/isochrone.yml`, monthly), unlike the network overlay which `etl.pipeline` builds: this one needs a JVM, downloads 451 MB, so it has no business on the path of a sixty-second run. 
 
 | Output | | |
 |---|---|---|
@@ -384,23 +386,28 @@ Under half a megabyte for all four, because a matrix of minutes over a region co
 
 Row *i* is origin *i*. The matrix is **not symmetric** — leaving a commune at 08:00 is not the reverse of arriving in it — so the whole square ships. `255` means "not reachable within two hours".
 
-#### What the number is, and is not
+**R5 is a *many-to-many* engine, and that is the whole reason it fits.** Conveyal built it for regional accessibility analysis — "what can be reached from everywhere" — not for door-to-door itineraries, which is what a journey-planner API sells. Asking it for 1 285 × 1 285 pairs is its normal workload, not 1.65 million abusive requests: it loads the timetable once and sweeps outward from all origins in one pass.
 
+It routes on the **raw GTFS timetable**, with a RAPTOR-family algorithm that walks the feed round by round. 
+
+Two objects do all the work:
+
+| | |
+|---|---|
+| `r5py.TransportNetwork(osm, [gtfs])` | Builds the routable graph — street network linked to the timetable. This is the expensive step: about nine minutes on the first run, then cached beside the `.osm.pbf`, which is why a re-run is far cheaper than the first one. |
+| `r5py.TravelTimeMatrix(...)` | One call per mode, origins = destinations = the 1 285 chef-lieux. Returns a **long** frame (`from_id`, `to_id`, `travel_time_p50`), which `matrix._square()` reshapes into the dense uint8 square. |
+
+The arguments that are not defaults, each for a reason:
+
+- `snap_to_network=True` — a chef-lieu is a point on a village square, not on a road centreline, and R5 silently returns *nothing* for an origin it cannot link to the street graph. Without this, a handful of communes are empty rows rather than obviously broken ones.
+- `percentiles=[50]` — the median of the window, as above. It also renames the output column to `travel_time_p50`, which `_travel_time_column()` handles rather than assuming.
+- `max_time=120 min` — also the uint8 ceiling: 254 is the largest minute value that fits in a byte.
+- `transport_modes` — `[TRANSIT, WALK]`, `[BICYCLE]`, `[WALK]`. Transit needs `WALK` alongside it: that is the access and egress leg, and without it R5 can board nothing.
+
+**R5 leaves an unroutable pair *unset* rather than returning `max_time`.** So the square is filled with `UNREACHABLE` (255) first and only finite values are written over it, which is what keeps "no route" and "exactly two hours away" from collapsing into the same number.
 Measured from the commune's **chef-lieu**, the point AdminExpress publishes for where the town is. R5 then snaps that to the nearest street.
 
-- **Not the middle of the polygon**, and that choice decides whether the layer works at all. Fontainebleau is 172 km² of which most is forest: measured from its geometric point, three kilometres into the trees, every destination came back unreachable within two hours — which reads as *you cannot get there from here* and is false. The chef-lieu is 3.4 km away, by the station.
-- **It is still one point for a whole commune.** A commune whose people live away from its chef-lieu is measured from somewhere they do not live, and nothing published gives a population-weighted point per commune. Stated rather than quietly corrected.
-- **Paris 1er, 2e and 4e fall back to their polygons.** AdminExpress gives all three the Hôtel de Ville, mairie of the merged *Paris Centre* sector since 2020, which would have given them one shared origin and zero minutes between them.
-- **One departure profile**: a Tuesday at 08:00, median over an hour of possible departure times. Not a Saturday, not the evening.
-- **Two hours is the ceiling.** Beyond it nothing is computed, and nothing beyond it is a commute anyone chooses a flat around.
-- **No car.** R5 and OSRM both compute free-flow times from OSM speed limits, and no open source publishes congestion for Île-de-France — a car layer would claim the A86 runs at 110 km/h at 08:00, wrong by roughly two-fold at exactly the hour that matters. Left out rather than shipped behind a caveat.
-- **Walking and cycling answer a sub-commune question.** A 20-minute walk is a shape inside your own commune, not a list of other communes, so those two modes legitimately look sparse outside the dense core. That is true information, not missing data.
-
-#### The date is chosen from the feed, never hardcoded
-
 IDFM's GTFS covers about 30 days from the moment it is generated and is regenerated three times a day, so a fixed date stops being valid within the month. `etl/isochrone/network.py` picks the **Tuesday inside the feed's validity with the most trips running**, which is what keeps the result out of a school-holiday week without needing a calendar of French school holidays, and is a pure function of the feed.
-
-It matters more than it sounds. On the feed built 2 September 2026, the first Tuesday available was 1 September with **5 469 trips** — the tail of the summer timetable — against 144 665 on the 22nd. Taking the first would have measured a region whose buses had mostly stopped running.
 
 ### Frontend
 
@@ -439,8 +446,8 @@ Data: the generated `communes_scores.geojson` is a derived database of SSMSI's c
 Possible improvments:
 
 1. **Extending beyond Île-de-France** : replacing the IDFM rail source with a national equivalent and/or local equivalent for cities like Lyon, Marseille, Toulouse... The IPS, BPE and the two light sources are already national — Cerema publishes the LuoJia radiance for 80 départements, and the lighting-practice file covers all 22 773 communes as it is.
-2. ~~Dynamic door-to-door commute time~~ — shipped, and it needed neither an API nor a server: see [Travel time from a commune](#travel-time-from-a-commune). What is still open there is **car**, which waits on a congestion source, and **filtering the ranking by travel time** — "rank by my priorities, but only within 45 min of my office" is what the matrix unlocks and is the obvious next step.
-3. Adding qualitative review from locals / Fetching with authorisation some website about quality of life in a commune or district.
+2. **Dynamic door-to-door commute time** : improving isochrone with and API to have a more precise calculation, about door to door travel and different dates, days, times.
+3. Adding **qualitative review** from locals / Fetching some website about quality of life in a commune or district.
 
 ### On AI assistance
 

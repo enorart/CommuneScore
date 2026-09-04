@@ -36,7 +36,7 @@ rather than shipped behind a caveat.
 import datetime
 
 # The three modes shipped, and the file each one writes. Keys match
-# web/traveltime.js's MODES; r5py's TransportMode values are resolved in
+# web/isochrone.js's MODES; r5py's TransportMode values are resolved in
 # matrix.py so that importing this module never starts a JVM.
 MODES = {
     "transit": {"label": "Transports en commun", "r5": ["TRANSIT", "WALK"]},
