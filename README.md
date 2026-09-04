@@ -31,13 +31,12 @@ That information exists. INSEE, ANIL, Île-de-France Mobilités and the Ministry
 
 ### How to use it
 
-1. **Pick a comparison zone.** Top of the sidebar. All of Île-de-France, the petite or grande couronne, one of the 8 départements, or one of the 63 intercommunalités. This matters more than it looks : see [Scope](#scope-what-a-score-is-relative-to).
-2. **Set your priorities.** One slider per criterion, grouped into four foldable families — *Habitat*, *Environnement*, *Famille*, *Loisirs* — each showing how many of its criteria you have weighted. Sliding to **0 removes the criterion entirely** rather than scoring it zero, so "I don't have children and I don't care about schools" is possible: that is why *Famille* starts folded away.
-3. **Read the map.** Darker = better fit for *your* weights. The ranking beneath the sliders lists the best communes, each with a small "spine" of bars showing its profile at a glance : a commune strong everywhere and one strong in two things can share the same composite score.
-4. **Click a commune.** The popup breaks the score down criterion by criterion, showing the raw value next to each score. Each criterion carries an **ⓘ** explaining what its number measures and where it misleads, and nine of them also expand — via the chevron on the label — into the detail behind the figure: rent's four typologies, the lines reachable, the crime families, the four pollutants, and so on. One panel is open at a time, so the popup never outgrows the map.
-5. **Zoom in on a zone.** In the popup, the commune's département and intercommunalité are clickable : comparing 30 neighbouring communes tells you far more than comparing 1 285.
-6. **Switch on the network.** Bottom left of the map, five toggles draw the RER, trains, métro, trams and buses : the line traces in Île-de-France Mobilités' own colours, and every stop in the region. Click a stop to see what calls there.
-7. **Ask what a commune reaches.** In its popup, *Temps de trajet depuis ici* recolours the whole map by minutes from that commune — by public transport, by bike or on foot — with a slider for how long you are willing to travel. Dark keeps meaning better : here, quicker.
+1. **Pick a comparison zone.** Top of the sidebar. All of Île-de-France, the petite or grande couronne, one of the 8 départements, or one of the 63 intercommunalités.
+2. **Set your priorities.** One slider per criterion, grouped into foldable families, each showing how many of its criteria you have weighted. Sliding to **0 removes the criterion entirely**.
+3. **Read the map.** Darker = better fit for *your* weights. The ranking beneath the sliders lists the best communes.
+4. **Click a commune.** The popup breaks the score down criterion by criterion, showing the raw value next to each score. Each criterion carries an **ⓘ** explaining what its number measures and where it misleads.
+5. **Switch on the network.** Bottom left of the map, five toggles draw the RER, trains, métro, trams and buses.
+6. **Ask what a commune reaches.** In its popup, *Temps de trajet depuis ici* recolours the whole map by minutes from that commune (public transport, bike or on foot) with a slider for how long you are willing to travel.
 
 ---
 
@@ -224,18 +223,9 @@ Each criterion is scaled to 0–100 over the communes currently in scope. The **
 
 ### Scope: what a score is relative to
 
-A 0–100 score only means something relative to a set of communes, and **which set that is belongs to the user**: all of Île-de-France, the petite couronne (92, 93, 94 — 122 communes) or the grande couronne (77, 78, 91, 95 — 1 143 communes), one of the 8 départements, or one of the 63 intercommunalités.
-
-The two couronnes are there because the ring immediately around Paris and the ring beyond it are different housing markets, and either is a fairer yardstick than the whole region without being as narrow as a single département. Paris belongs to neither, being what they are rings around.
-
-This is not cosmetic. Île-de-France is the wrong yardstick once a search has been narrowed: inside a single intercommunalité every commune lands in the same narrow band of the regional scale and the ranking stops discriminating at all. Changing the scope re-runs the entire normalisation over the selected communes only, from the raw columns the GeoJSON carries.
-
-**This is why scoring lives in the browser and not in the ETL**
-
-Note: a small scope *forces* a 0 and a 100 by construction. In a 4-commune intercommunalité, the best and worst are pinned to the ends of the scale however close together they really are.
+A 0–100 score only means something relative to a set of communes, and **which set that is belongs to the user**: all of Île-de-France, the petite couronne (92, 93, 94) or the grande couronne (77, 78, 91, 95), one of the 8 départements, or one of the 63 intercommunalités.
 
 A zone can be reached two ways. The dropdown works if you already know the name, but this is a lot of names to know, so the map is the other route: every commune popup names its couronne, its département and its intercommunalité as buttons, and clicking one compares within it. Once a zone is selected, clicking any *faded* commune moves the zone to the one that click landed in, at the same granularity : so leaving Est Ensemble by clicking west lands you in Plaine Commune, not in a département, and leaving the petite couronne by clicking east lands you in the grande couronne. Clicking Paris from either couronne selects the Paris département, since Paris has no couronne of its own to offer.
-
 The grouping comes from IGN's data. 
 
 ---
@@ -340,40 +330,26 @@ Every download goes through `cached_download(url, filename)` in `etl/common/cach
 ### Transport network overlay
 
 Five toggles at the bottom left of the map draw the network: **RER, Train, Métro, Tram, Bus**. Line traces in Île-de-France Mobilités' own colours, every stop in the region, and a popup on each stop naming the lines that call there.
+**It is an overlay, not a criterion.** Nothing here is scored, nothing joins onto the reference table and the Transport slider does not read it.
 
-**It is an overlay, not a criterion.** Nothing here is scored, nothing joins onto the reference table and the Transport slider does not read it — that criterion still counts distinct lines within 1 km of a commune, from a different IDFM dataset. Two things that look like the same data are not: the scored source is 996 station *zones de correspondance*, this one is 19 505 stop points and 1 673 line segments.
-
-It carries no scores and joins onto nothing, so it cannot ride the pipeline's `SOURCES` loop, whose `build()` returns columns indexed by `code_insee`. `etl/network/` gets its own contract for that. It does **not** get its own command: `pipeline.main()` calls it once the scores are written, on the reference table it has already built, so `uv run python -m etl.pipeline` still produces every file the frontend loads. Two commands would be two things to remember and two things for the refresh workflow to forget — and a stale overlay is invisible until someone switches a mode on and finds a line that no longer exists.
-
-Output: `data/processed/reseau_traces.geojson` (1 673 segments, 0.5 MB) and `reseau_arrets.geojson` (19 505 stops, 4.6 MB). Both are fetched by the browser **only when a mode is first switched on** — 5 MB has no business delaying the choropleth, which is what the page is for.
-
-**Bus line traces were measured and rejected.** IDFM publishes them in the same shape as the rail ones, and they are 1 929 lines, 107 MB raw, still 31.6 MB after simplifying to 20 m and splitting per département — against 5 MB for the whole repository before this. They are also 40 000 km of trace that resolves into an unreadable hairball at any zoom wide enough to see a département. Bus *stops* are shipped, because they are 18 870 of the 19 505 and they are what a rider stands at.
-
-**Outside the comparison zone the network fades rather than disappearing.** Same 0.78/0.5 grammar the choropleth already uses for an out-of-scope commune, and for the same reason: a métro line that stopped dead at the Pantin boundary would read as a network that ends there. The ETL tags every feature with the département and intercommunalité it belongs to, which are exactly the two fields a scope is defined over, so the fade is one comparison per feature rather than a commune code tested against a list of 1 285.
-
-Two things about the stop data are worth knowing before touching `etl/network/arrets.py`:
-
-- **IDFM's stop ids are per line, not per place.** A place arrives as one point per line calling there — Porte d'Orléans is 24 of them, Gare de l'Est 18. Drawn as they come they are overlapping circles of which a click reaches exactly one, and its popup names one line out of the dozen. They are clustered back together by name *and* proximity, at 150 m: the median gap between two same-name stops in a commune is 50 m, but the widest is 2.6 km, because a commune can have a "Mairie" bus stop at each end.
-- **The file codes Paris as `75056`**, all 3 433 of its stops, where the rest of the project splits Paris by arrondissement. Unlike `extinctions.py`, which meets the same trap without coordinates, these rows can simply be placed: the commune comes from a point-in-polygon join against `communes_ref`, never from the file's own `Code_insee`. That also fixes 182 non-Paris stops whose code disagrees with where they physically stand, all at a commune boundary. 244 stops resolve to nothing and are dropped — IDFM lines reach Vernon, Dreux and Plailly, and no comparison zone could ever contain them.
-
-Bus stops draw from zoom 12 and stop names from zoom 13.5. At region zoom, 18 870 bus dots are a grey wash that tells nobody anything.
+Output: `data/processed/reseau_traces.geojson` and `reseau_arrets.geojson`. Both are fetched by the browser **only when a mode is first switched on**.
+Bus traces are not available, since it will not be readable enough and contains a lot of datas.
+Bus stops draw from zoom 12 and stop names from zoom 13.5.
 
 ### Isochrone (travel time) from a commune : router R5, driven from Python by r5py
 
-Click a commune, press **Temps de trajet depuis ici**, and the whole map recolours by how many minutes it takes to reach every other commune — by public transport, by bike or on foot — with a slider for the time you are willing to spend. Dark still means better, as it does for scores: here it means quicker.
+Click a commune, press **Temps de trajet depuis ici**, and the whole map recolours by how many minutes it takes to reach every other commune (public transport, bike or on foot), with a slider for the time you are willing to spend. Dark still means better, quicker.
+Every travel time is precomputed in CI and shipped as a static file. The result is **a matrix, not isochrone polygons => what makes it affordable.**
 
-Every travel time is precomputed in CI and shipped as a static file.
-
-**A matrix, not isochrone polygons, and that is what makes it affordable.**
-
-The router is [R5](https://github.com/conveyal/r5) via [r5py](https://r5py.readthedocs.io/), run locally over an OpenStreetMap extract and Île-de-France Mobilités' GTFS. No routing API is involved, mostly because IDFM's own isochrone endpoint allows 10 requests a month. 
+The router is [R5](https://github.com/conveyal/r5) via [r5py](https://r5py.readthedocs.io/), run locally over an OpenStreetMap extract and Île-de-France Mobilités' GTFS. 
+No routing API is involved, mostly because IDFM's own isochrone endpoint allows 10 requests a month. 
 
 ```bash
 uv sync --group isochrone
 uv run python -m etl.isochrone      # needs a JDK 21; not part of etl.pipeline : example : JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-21.0.1.12-hotspot'
 ```
 
-Its own command and its own workflow (`.github/workflows/isochrone.yml`, monthly), unlike the network overlay which `etl.pipeline` builds: this one needs a JVM, downloads 451 MB, so it has no business on the path of a sixty-second run. 
+Its own command and its own workflow (`.github/workflows/isochrone.yml`, monthly), unlike the network overlay which `etl.pipeline` builds: this one needs a JVM and downloads datas. 
 
 | Output | | |
 |---|---|---|
@@ -382,32 +358,13 @@ Its own command and its own workflow (`.github/workflows/isochrone.yml`, monthly
 | `temps_marche.bin.gz` | same | 0.05 MB |
 | `temps_index.json` | the 1 285 codes **in matrix order**, and the profile below | 16 KB |
 
-Under half a megabyte for all four, because a matrix of minutes over a region compresses extremely well: 1.65 MB of bytes each becomes 0.30, 0.12 and 0.05.
-
-Row *i* is origin *i*. The matrix is **not symmetric** — leaving a commune at 08:00 is not the reverse of arriving in it — so the whole square ships. `255` means "not reachable within two hours".
-
-**R5 is a *many-to-many* engine, and that is the whole reason it fits.** Conveyal built it for regional accessibility analysis — "what can be reached from everywhere" — not for door-to-door itineraries, which is what a journey-planner API sells. Asking it for 1 285 × 1 285 pairs is its normal workload, not 1.65 million abusive requests: it loads the timetable once and sweeps outward from all origins in one pass.
-
+Row *i* is origin *i*. The matrix is **not symmetric** :leaving a commune at 08:00 is not the reverse of arriving in it, so the whole square ships. `255` means "not reachable within two hours".
 It routes on the **raw GTFS timetable**, with a RAPTOR-family algorithm that walks the feed round by round. 
-
-Two objects do all the work:
-
-| | |
-|---|---|
-| `r5py.TransportNetwork(osm, [gtfs])` | Builds the routable graph — street network linked to the timetable. This is the expensive step: about nine minutes on the first run, then cached beside the `.osm.pbf`, which is why a re-run is far cheaper than the first one. |
-| `r5py.TravelTimeMatrix(...)` | One call per mode, origins = destinations = the 1 285 chef-lieux. Returns a **long** frame (`from_id`, `to_id`, `travel_time_p50`), which `matrix._square()` reshapes into the dense uint8 square. |
-
-The arguments that are not defaults, each for a reason:
-
-- `snap_to_network=True` — a chef-lieu is a point on a village square, not on a road centreline, and R5 silently returns *nothing* for an origin it cannot link to the street graph. Without this, a handful of communes are empty rows rather than obviously broken ones.
-- `percentiles=[50]` — the median of the window, as above. It also renames the output column to `travel_time_p50`, which `_travel_time_column()` handles rather than assuming.
-- `max_time=120 min` — also the uint8 ceiling: 254 is the largest minute value that fits in a byte.
-- `transport_modes` — `[TRANSIT, WALK]`, `[BICYCLE]`, `[WALK]`. Transit needs `WALK` alongside it: that is the access and egress leg, and without it R5 can board nothing.
 
 **R5 leaves an unroutable pair *unset* rather than returning `max_time`.** So the square is filled with `UNREACHABLE` (255) first and only finite values are written over it, which is what keeps "no route" and "exactly two hours away" from collapsing into the same number.
 Measured from the commune's **chef-lieu**, the point AdminExpress publishes for where the town is. R5 then snaps that to the nearest street.
 
-IDFM's GTFS covers about 30 days from the moment it is generated and is regenerated three times a day, so a fixed date stops being valid within the month. `etl/isochrone/network.py` picks the **Tuesday inside the feed's validity with the most trips running**, which is what keeps the result out of a school-holiday week without needing a calendar of French school holidays, and is a pure function of the feed.
+IDFM's GTFS covers about 30 days from the moment it is generated and is regenerated three times a day, so a fixed date stops being valid within the month. `etl/isochrone/network.py` picks the **Tuesday inside the feed's validity with the most trips running**, which is what keeps the result out of a school-holiday week.
 
 ### Frontend
 
